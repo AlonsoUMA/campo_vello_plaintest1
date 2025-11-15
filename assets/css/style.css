@@ -1,0 +1,131 @@
+/* assets/css/style.css - Campo Vello */
+
+/**
+ * 1. Base y Tipografía
+ */
+body {
+    font-family: Segoe UI, Tahoma, sans-serif;
+    background: linear-gradient(180deg, #eef8f0, #ffffff);
+    margin: 0;
+    color: #1b3b18;
+}
+
+h1, h2 {
+    color: #1b5e20;
+    margin: 0 0 12px 0;
+}
+
+/**
+ * 2. Layout y Contenedores
+ */
+nav {
+    background: #2e7d32;
+    color: #fff;
+    padding: 12px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.container {
+    width: 95%;
+    max-width: 1100px;
+    margin: 26px auto;
+    background: #fff;
+    border-radius: 10px;
+    padding: 22px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+/**
+ * 3. Formularios e Inputs
+ */
+input, select, textarea {
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #ced4da;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/**
+ * 4. Botones
+ */
+.btn {
+    display: inline-block;
+    background: #2e7d32;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 24px rgba(46, 125, 50, 0.12);
+}
+
+/**
+ * 5. Tablas
+ */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+
+.table th, .table td {
+    padding: 10px;
+    border: 1px solid #e9f1ea;
+    text-align: left;
+}
+
+.table th {
+    background: #2e7d32;
+    color: #fff;
+}
+
+/**
+ * 6. Componentes (Alerta y Modal)
+ */
+.alert {
+    background: #fff3cd;
+    color: #856404;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: #fff;
+    padding: 18px;
+    border-radius: 8px;
+    width: 92%;
+    max-width: 640px;
+}
+
+/**
+ * 7. Media Queries (Adaptabilidad)
+ */
+@media (max-width: 720px) {
+    /* Esta regla asume que .form-row está definida en el HTML como un flexbox */
+    .form-row {
+        flex-direction: column;
+    }
+}
