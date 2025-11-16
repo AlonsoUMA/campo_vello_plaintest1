@@ -51,7 +51,7 @@ $recent = $pdo->query('SELECT f.*, u.nombre as vendedor, cl.name as cliente FROM
                         <td><?=$r['created_at']?></td>
                         <td><?=htmlspecialchars($r['cliente'])?></td>
                         <td><?=number_format($r['total'],2)?></td>
-                        <td><a class="btn" href="ver_factura.php?id=<?=$r['id']?>" target="_blank">Ver PDF</a></td>
+                        <td><a class="btn" href="generar_pdf.php?id=<?=$r['id']?>" target="_blank">Ver PDF</a></td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>

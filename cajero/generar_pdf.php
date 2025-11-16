@@ -142,7 +142,7 @@ if (file_exists($vendor)) {
 
     if (class_exists('Dompdf\Dompdf') || class_exists('Dompdf')) {
         if (class_exists('Dompdf\\Dompdf')) { 
-            $dompdf = new Dompdf\\Dompdf(); 
+            $dompdf = new Dompdf\Dompdf(); 
         } else { 
             $dompdf = new Dompdf(); 
         }
