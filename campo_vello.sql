@@ -20,6 +20,9 @@ SET time_zone = "+00:00";
 --
 -- Base de datos: `campo_vello`
 --
+drop database if exists `campo_vello`;
+CREATE DATABASE `campo_vello`;
+USE `campo_vello`;
 
 -- --------------------------------------------------------
 
