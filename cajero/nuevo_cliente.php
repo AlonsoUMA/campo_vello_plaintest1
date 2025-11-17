@@ -29,8 +29,8 @@ unset($_SESSION['mensaje']);
             <strong>Panel de Cajero</strong>
         </div>
         <div>
-            <a href="ventas.php" class="btn">Volver a Ventas</a>
-            <a href="../logout.php" class="btn" style="background-color:#d9534f;">Cerrar Sesión</a>
+            <a href="ventas.php" class="btn">Volver al panel</a>
+            <!--<a href="../logout.php" class="btn" style="background-color:#d9534f;">Cerrar Sesión</a>-->
         </div>
     </nav>
     

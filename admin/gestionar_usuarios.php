@@ -67,7 +67,7 @@ $users = $pdo->query('SELECT * FROM usuarios ORDER BY id DESC')->fetchAll();
         <strong>Campo Vello - Admin</strong>
     </div>
     <div>
-        <a href="dashboard.php" style="color:#fff">Volver</a>
+        <a href="dashboard.php" style="color:#fff" class="btn">Volver al panel</a>
     </div>
 </nav>
 

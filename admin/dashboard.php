@@ -70,7 +70,7 @@ $lowStock = $pdo->query('SELECT COUNT(*) FROM productos WHERE stock < 5')->fetch
         </div>
 
         <div>
-            <a href="../logout.php" style="color:#fff">Cerrar sesión</a>
+            <a href="../logout.php" class="btn" style="background-color:#d9534f;">Cerrar Sesión</a>
         </div>
     </nav>
 

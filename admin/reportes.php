@@ -6,8 +6,6 @@ require '../vendor/autoload.php';
 use Dompdf\Dompdf; 
 use Dompdf\Options; 
 
-// ... tu código para generar el PDF
-
 /**
  * 1. Lógica y Seguridad
  */
@@ -26,8 +24,20 @@ $pdo = getPDO();
 // Obtener estadísticas clave
 $totalProducts = $pdo->query('SELECT COUNT(*) FROM productos')->fetchColumn();
 $totalUsers = $pdo->query('SELECT COUNT(*) FROM usuarios')->fetchColumn();
-$totalSalesToday = $pdo->query('SELECT SUM(total) FROM facturas WHERE DATE(created_at) = DATE(\'now\')')->fetchColumn() ?: 0;
-$totalSalesMonth = $pdo->query('SELECT SUM(total) FROM facturas WHERE STRFTIME(\'%Y-%m\', created_at) = STRFTIME(\'%Y-%m\', \'now\')')->fetchColumn() ?: 0;
+
+// ✔ Ventas de hoy (versión MySQL)
+$totalSalesToday = $pdo->query("
+    SELECT SUM(total) 
+    FROM facturas 
+    WHERE DATE(created_at) = CURDATE()
+")->fetchColumn() ?: 0;
+
+// ✔ Ventas del mes actual (versión MySQL)
+$totalSalesMonth = $pdo->query("
+    SELECT SUM(total) 
+    FROM facturas 
+    WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')
+")->fetchColumn() ?: 0;
 
 ?>
 
@@ -47,7 +57,7 @@ $totalSalesMonth = $pdo->query('SELECT SUM(total) FROM facturas WHERE STRFTIME(\
         <strong>Campo Vello - Admin</strong>
     </div>
     <div>
-        <a href="../logout.php" style="color:#fff">Cerrar Sesión</a>
+        <a href="dashboard.php" style="color:#fff" class="btn">Volver al panel</a>
     </div>
 </nav>
 

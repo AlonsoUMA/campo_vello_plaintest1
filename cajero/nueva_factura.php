@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <strong>Campo Vello - Cajero</strong>
         </div>
         <div>
-            <a href="ventas.php" style="color:#fff">Volver</a>
+            <a href="ventas.php" style="color:#fff" class="btn">Volver al panel</a>
         </div>
     </nav>
     <div class="container">
@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php foreach ($products as $p): ?>
                         <tr>
                             <td><?= htmlspecialchars($p['name']) ?></td>
-                            <td><?= number_format($p['price'], 2) ?></td>
+                            <td>$<?= number_format($p['price'], 2) ?></td>
                             <td><?= $p['stock'] ?></td>
                             <td>
                                 <input type="number"

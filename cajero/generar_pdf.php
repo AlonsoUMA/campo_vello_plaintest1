@@ -122,8 +122,8 @@ ob_start();
                 <tr>
                     <td><?php echo htmlspecialchars($it['name']); ?></td>
                     <td><?php echo $it['quantity']; ?></td>
-                    <td><?php echo number_format($it['price'],2); ?></td>
-                    <td><?php echo number_format($it['price']*$it['quantity'],2); ?></td>
+                    <td>$<?php echo number_format($it['price'],2); ?></td>
+                    <td>$<?php echo number_format($it['price']*$it['quantity'],2); ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

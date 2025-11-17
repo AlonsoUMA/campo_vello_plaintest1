@@ -22,7 +22,7 @@ $recent = $pdo->query('SELECT f.*, u.nombre as vendedor, cl.name as cliente FROM
             <strong>Campo Vello - Cajero</strong>
         </div>
         <div>
-            <a href="../logout.php" style="color:#fff">Cerrar sesión</a>
+            <a href="../logout.php" class="btn" style="background-color:#d9534f;">Cerrar Sesión</a>
         </div>
     </nav>
     <div class="container">
@@ -31,7 +31,6 @@ $recent = $pdo->query('SELECT f.*, u.nombre as vendedor, cl.name as cliente FROM
             <a class="btn" href="nueva_factura.php">Nueva factura</a>
             <a href="nuevo_cliente.php" class="btn" style="background-color:verde;">  Registrar Cliente </a>
         </div>
-          
 
         <h3>Facturas recientes</h3>
         <table class="table">
@@ -50,7 +49,7 @@ $recent = $pdo->query('SELECT f.*, u.nombre as vendedor, cl.name as cliente FROM
                         <td><?=$r['id']?></td>
                         <td><?=$r['created_at']?></td>
                         <td><?=htmlspecialchars($r['cliente'])?></td>
-                        <td><?=number_format($r['total'],2)?></td>
+                        <td>$<?=number_format($r['total'],2)?></td>
                         <td><a class="btn" href="generar_pdf.php?id=<?=$r['id']?>" target="_blank">Ver PDF</a></td>
                     </tr>
                 <?php endforeach; ?>
