@@ -41,7 +41,7 @@ unset($_SESSION['error']);
     <div class="container">
         <h2>Iniciar sesión</h2>
         
-        <?php 
+        <?php
         // Mostrar mensaje de error si existe
         if($error) {
             echo '<div class="alert">'.htmlspecialchars($error).'</div>'; 
