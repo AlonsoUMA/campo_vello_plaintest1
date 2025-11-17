@@ -56,7 +56,8 @@ unset($_SESSION['error']);
             ?>
             
             <label for="email">Email</label>
-            <input type="email" name="email" id="email" required>
+            <input type="email" class="form-control" name="email" id="email" required>
+                
             
             <label for="password">Contraseña</label>
             <input type="password" name="password" id="password" required>
