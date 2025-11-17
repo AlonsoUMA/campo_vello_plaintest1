@@ -82,7 +82,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = $e->getMessage();
 
                 // Registro de errores
-                file_put_contents(__DIR__ . '/../logs/error.log', date('[Y-m-d H:i:s] ') . $error . PHP_EOL, FILE_APPEND);
+                $logPath = __DIR__ . '/../logs/error.log';
+
+                // Crear carpeta si no existe
+                $logDir = dirname($logPath);
+                if (!is_dir($logDir)) {
+                    mkdir($logDir, 0777, true);
+                }
+
+                // Registrar error
+                file_put_contents($logPath, date('Y-m-d H:i:s') . " - $error\n", FILE_APPEND);
             }
         }
     }
@@ -117,13 +126,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php echo csrf_field(); ?>
 
             <label>Cliente</label>
-            <select name="client_id" style="width: 250px;">
-                <option value="0">Seleccione un cliente</option>
+            <select name="client_id" required style="width: 250px;">
+                <option value="">Seleccione un cliente</option>
                 <?php
                 // Ahora usamos $c['nombre'] gracias al alias en la consulta SQL
                 foreach ($clients as $c) echo "<option value='{$c['id']}'>" . htmlspecialchars($c['nombre']) . "</option>";
                 ?>
             </select>
+            <br><br>
+            <!--Buscador de productos-->
+            <div class="form-floating"><input
+                type="text" 
+                id="buscador" 
+                placeholder="Buscar producto..." 
+                style="width:300px;padding:6px;margin-bottom:12px;"
+            ></div>
+
 
             <table class="table">
                 <thead>
@@ -151,11 +169,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php endforeach; ?>
                 </tbody>
             </table>
+
+            <h3 style="text-align:right;margin-top:20px;">
+                Total a pagar: $ <span id="totalPagar">0.00</span>
+            </h3>
             <div style="text-align:right;margin-top:12px;">
                 <button class="btn">Generar factura</button>
             </div>
         </form>
     </div>
+<script>// Script para calcular el total en tiempo real
+    function calcularTotal() {
+        let total = 0;
+
+        // Recorrer todas las filas de productos
+        document.querySelectorAll("table tbody tr").forEach(fila => {
+            let precio = parseFloat(fila.querySelector("td:nth-child(2)").textContent.replace('$',''));
+            let qty    = parseInt(fila.querySelector("input[type='number']").value) || 0;
+
+            total += precio * qty;
+        });
+
+        document.getElementById("totalPagar").textContent = total.toFixed(2);
+    }
+
+    // Activar cálculo cuando se cambien cantidades
+    document.querySelectorAll("input[type='number']").forEach(input => {
+        input.addEventListener("input", calcularTotal);
+    });
+</script>
+
 </body>
+
+<script> // Scrip de búsqueda en la tabla de productos
+document.getElementById('buscador').addEventListener('input', function () {
+    let filtro = this.value.toLowerCase();
+    let filas = document.querySelectorAll("table tbody tr");
+
+    filas.forEach(fila => {
+        let nombre = fila.querySelector("td:first-child").textContent.toLowerCase();
+        fila.style.display = nombre.includes(filtro) ? "" : "none";
+    });
+});
+</script>
 
 </html>
