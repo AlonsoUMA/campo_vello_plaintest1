@@ -142,7 +142,7 @@ ob_start();
 </body>
 </html>
 <?php
-$html = ob_get_clean();
+$html = ob_get_clean(); 
 
 $path = __DIR__ . '/../facturas/factura_' . $invoice['id'] . '.pdf';
 $vendor = __DIR__ . '/../vendor/autoload.php';
