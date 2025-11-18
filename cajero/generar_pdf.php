@@ -274,7 +274,7 @@ ob_start();
 
             <div class="invoice-info">
             </div>
-        </div> 
+        </div>
         
         <div class="clearfix"></div> 
         

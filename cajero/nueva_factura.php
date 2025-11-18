@@ -131,116 +131,101 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($error) echo '<div class="alert">' . htmlspecialchars($error) . '</div>'; ?>
 
         <form method="post">
-            <?php echo csrf_field(); ?>
+<?= csrf_field() ?>
 
-            <div style="display:flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
-                <div>
-                    <label>Cliente</label>
-                    <select name="client_id" required style="width: 250px;">
-                        <option value="">Seleccione un cliente</option>
-                        <?php
-                        // Ahora usamos $c['nombre'] gracias al alias en la consulta SQL
-                        foreach ($clients as $c) {
-                            $selected = ($c['id'] == $client_id_selected) ? 'selected' : '';
-                            echo "<option value='{$c['id']}' $selected>" . htmlspecialchars($c['nombre']) . "</option>";
-                        }
-                        ?>
-                    </select>
-                </div>
+<div style="display:flex; gap:20px;">
 
-                <div class="form-floating">
-                    <input
-                        type="text" 
-                        id="buscador" 
-                        placeholder="Buscar producto..." 
-                        style="width:300px;padding:6px;"
-                    >
-                </div>
-            </div>
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Producto</th>
-                        <th>Precio (Sin IVA)</th>
-                        <th>Stock</th>
-                        <th>Cantidad</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($products as $p): ?>
-                        <tr data-price="<?= number_format($p['price'], 2, '.', '') ?>">
-                            <td><?= htmlspecialchars($p['name']) ?></td>
-                            <td>$<?= number_format($p['price'], 2) ?></td>
-                            <td><?= $p['stock'] ?></td>
-                            <td>
-                                <input type="number"
-                                    name="items[<?= $p['id'] ?>]"
-                                    min="0"
-                                    max="<?= $p['stock'] ?>"
-                                    value="0">
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+    
 
-            <div style="text-align:right; margin-top: 20px;">
-                <p>Subtotal: $ <span id="subtotalPagar">0.00</span></p>
-                <p>IVA (<?= ($iva_rate * 100) ?>%): $ <span id="ivaMonto">0.00</span></p>
-                <h3 style="margin-top:5px;">
-                    Total a pagar: $ <span id="totalPagar">0.00</span>
-                </h3>
+    <!-- ================= LISTA DE PRODUCTOS (IZQUIERDA) =================== -->
+    <div style="width:60%;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+            <div>
+                <label>Cliente</label>
+                <select name="client_id" required style="width:220px;">
+                    <option value="">Seleccione un cliente</option>
+                    <?php foreach ($clients as $c): ?>
+                        <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['nombre']) ?></option>
+                    <?php endforeach ?>
+                </select>
             </div>
-            
-            <div style="text-align:right;margin-top:12px;">
-                <button class="btn">Generar factura</button>
-            </div>
-        </form>
+
+            <input type="text" id="buscador" placeholder="Buscar producto..." style="width:250px;">
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Cant</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($products as $p): ?>
+                <tr data-id="<?= $p['id'] ?>" data-name="<?= htmlspecialchars($p['name']) ?>"
+                    data-price="<?= $p['price'] ?>">
+                    
+                    <td><?= htmlspecialchars($p['name']) ?></td>
+                    <td>$<?= number_format($p['price'],2) ?></td>
+                    <td><?= $p['stock'] ?></td>
+
+                    <td>
+                        <input type="number" min="1" max="<?= $p['stock'] ?>" value="0"
+                            style="width:55px;">
+                    </td>
+
+                    <td>
+                        <button type="button" class="btn agregarBtn">Agregar</button>
+                    </td>
+
+                </tr>
+                <?php endforeach ?>
+            </tbody>
+        </table>
     </div>
+
+    <!-- ====================== CARRITO (DERECHA) ======================= -->
+    <div 
+    style="width:40%; background:#f8fff4; padding:15px; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+
+        <h3>Carrito</h3>
+
+        <table class="table" id="carritoTabla">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cant</th>
+                    <th>Subtotal</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="carritoBody">
+                <tr><td colspan="4" style="text-align:center;color:#888;">No hay productos</td></tr>
+            </tbody>
+        </table>
+
+        <hr>
+
+        <p>Subtotal: $ <span id="subtotalPagar">0.00</span></p>
+        <p>IVA (13%): $ <span id="ivaMonto">0.00</span></p>
+
+        <h3>Total: $ <span id="totalPagar">0.00</span></h3>
+
+        <button class="btn" style="margin-top:10px; width:100%;">Procesar compra</button>
+    </div>
+
+</div>
+
+</form>
+
+</div>
     
-    <script>
-    // --- MODIFICACIÓN DE IVA: Tasa de IVA en JavaScript ajustada al 13% ---
-    const IVARATE = 0.13; // Tasa del 13%
+<script src="../includes/carrito.js"></script>
+<script src="../includes/buscador.js"></script>
 
-    function calcularTotal() {
-        let subtotal = 0;
-
-        // Recorrer todas las filas de productos
-        document.querySelectorAll("table tbody tr").forEach(fila => {
-            // Usamos el atributo data-price para obtener el valor numérico exacto
-            let precio = parseFloat(fila.dataset.price); 
-            let qty    = parseInt(fila.querySelector("input[type='number']").value) || 0;
-
-            subtotal += precio * qty;
-        });
-
-        const iva_amount = subtotal * IVARATE;
-        const total = subtotal + iva_amount;
-
-        // Mostrar los valores
-        document.getElementById("subtotalPagar").textContent = subtotal.toFixed(2);
-        document.getElementById("ivaMonto").textContent = iva_amount.toFixed(2);
-        document.getElementById("totalPagar").textContent = total.toFixed(2);
-    }
-
-    // Inicializar el cálculo y activar evento
-    document.querySelectorAll("input[type='number']").forEach(input => {
-        input.addEventListener("input", calcularTotal);
-    });
-    
-    calcularTotal(); // Llamada inicial para asegurar que el total se muestra al cargar.
-
-    // Scrip de búsqueda en la tabla de productos (Sin cambios)
-    document.getElementById('buscador').addEventListener('input', function () {
-        let filtro = this.value.toLowerCase();
-        let filas = document.querySelectorAll("table tbody tr");
-
-        filas.forEach(fila => {
-            let nombre = fila.querySelector("td:first-child").textContent.toLowerCase();
-            fila.style.display = nombre.includes(filtro) ? "" : "none";
-        });
-    });
-    </script>
 </body>
 
 </html>
