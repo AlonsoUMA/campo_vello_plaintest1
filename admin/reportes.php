@@ -88,12 +88,7 @@ $totalSalesMonth = $pdo->query("
 
     </div>
 
-    <h3>Gestión</h3>
-    <div style="display:flex;gap:15px;flex-wrap:wrap">
-        <a href="gestionar_productos.php" class="btn">Gestionar Productos</a>
-        <a href="gestionar_usuarios.php" class="btn">Gestionar Usuarios</a>
-        <a href="reportes.php" class="btn">Ver Reportes</a>
-    </div>
+    
 </div>
 
 </body>

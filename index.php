@@ -41,7 +41,7 @@ unset($_SESSION['error']);
     <div class="container">
         <h2>Iniciar sesión</h2>
         
-        <?php
+        <?php 
         // Mostrar mensaje de error si existe
         if($error) {
             echo '<div class="alert">'.htmlspecialchars($error).'</div>'; 
@@ -56,8 +56,7 @@ unset($_SESSION['error']);
             ?>
             
             <label for="email">Email</label>
-            <input type="email" class="form-control" name="email" id="email" required>
-                
+            <input type="email" name="email" id="email" required>
             
             <label for="password">Contraseña</label>
             <input type="password" name="password" id="password" required>
