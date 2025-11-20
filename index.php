@@ -56,10 +56,10 @@ unset($_SESSION['error']);
             ?>
             
             <label for="email">Email</label>
-            <input type="email" name="email" id="email" required>
+            <input type="email" name="email" id="email" pattern="[a-zA-Za-zA-ZñÑáÁéÉíÍóÓÚú@.\s]+]" required>
             
             <label for="password">Contraseña</label>
-            <input type="password" name="password" id="password" required>
+            <input type="password" name="password" id="password" pattern="^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()_+])[^\\sñÑáéíóúÁÉÍÓÚ]{8,20}$" required>
             
             <div style="text-align:center;margin-top:8px;">
                 <button class="btn">Ingresar</button>

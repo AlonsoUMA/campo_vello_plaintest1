@@ -25,7 +25,7 @@ $pdo = getPDO();
 $id = (int)($_GET['id'] ?? 0);
 
 if ($id <= 0) {
-    header('Location: ventas.php');
+    header('Location: ../ventas.php');
     exit;
 }
 
@@ -37,10 +37,10 @@ $stmt = $pdo->prepare('SELECT f.*,
                             cl.phone as client_phone,
                             cl.email as client_email,
                             cl.address as client_address
-                     FROM facturas f 
-                     LEFT JOIN usuarios u ON f.user_id=u.id 
-                     LEFT JOIN clientes cl ON f.client_id=cl.id 
-                     WHERE f.id = ?');
+                    FROM facturas f 
+                    LEFT JOIN usuarios u ON f.user_id=u.id 
+                    LEFT JOIN clientes cl ON f.client_id=cl.id 
+                    WHERE f.id = ?');
 
 $stmt->execute([$id]); 
 $invoice = $stmt->fetch();
@@ -60,13 +60,13 @@ $items = $itemsStmt->fetchAll();
 
 // 3. Preparación del logo (Codificación Base64 para Dompdf)
 // Dompdf requiere a menudo que las imágenes locales se incrusten usando Base64.
-$logoPath = realpath(__DIR__ . '/../assets/img/logo.svg'); 
+$logoPath = realpath(__DIR__ . '/../assets/img/logo2.jpg'); // <-- NOMBRE DE ARCHIVO ACTUALIZADO
 
 $logoDataUri = '';
 if ($logoPath && file_exists($logoPath)) {
     $logoContent = file_get_contents($logoPath);
-    // MIME type para SVG
-    $logoDataUri = 'data:image/svg+xml;base64,' . base64_encode($logoContent);
+    // MIME type para JPG/JPEG
+    $logoDataUri = 'data:image/jpeg;base64,' . base64_encode($logoContent); // <-- TIPO MIME ACTUALIZADO
 }
 
 // Determinar el porcentaje de IVA
@@ -133,7 +133,7 @@ ob_start();
             max-height: 100%; 
             width: 100%; /* La imagen ocupa el 100% del ancho de .logo-container */
             height: auto; /* La altura se ajusta automáticamente para mantener la proporción */
-            object-fit: contain; /* Asegura que el SVG mantenga su relación de aspecto */
+            object-fit: contain; /* Asegura que la imagen mantenga su relación de aspecto */
         }
         
         /* Ocultamos el bloque de la derecha que ya no tiene contenido */
@@ -407,6 +407,6 @@ if (isset($dompdf)) {
 
 // Respaldo en caso de fallo crítico de Dompdf (redirige)
 file_put_contents($path, $html);
-header('Location: ventas.php');
+header('Location: ../ventas.php');
 exit;
 ?>

@@ -208,12 +208,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </table>
 
         <hr>
-
-        <p>Subtotal: $ <span id="subtotalPagar">0.00</span></p>
-        <p>IVA (13%): $ <span id="ivaMonto">0.00</span></p>
-
-        <h3>Total: $ <span id="totalPagar">0.00</span></h3>
-
+        <div style="text-align:right;">
+            <p>Subtotal: $ <span id="subtotalPagar">0.00</span></p>
+            <p>IVA (13%): $ <span id="ivaMonto">0.00</span></p>
+            <h3>Total: $ <span id="totalPagar">0.00</span></h3>
+        </div>
         <button class="btn" style="margin-top:10px; width:100%;">Procesar compra</button>
     </div>
 
