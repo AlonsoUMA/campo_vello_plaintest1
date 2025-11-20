@@ -6,6 +6,9 @@ require_login();
 
 $pdo = getPDO();
 
+// --- MODIFICACIÓN DE IVA: Tasa del impuesto ajustada al 13% ---
+$iva_rate = 0.13; // 13% de IVA
+
 // Obtener listas para el formulario
 $products = $pdo->query('SELECT * FROM productos WHERE stock > 0 ORDER BY name')->fetchAll();
 
@@ -13,6 +16,7 @@ $products = $pdo->query('SELECT * FROM productos WHERE stock > 0 ORDER BY name')
 $clients = $pdo->query('SELECT id, name AS nombre FROM clientes ORDER BY name')->fetchAll();
 
 $error = null;
+$client_id_selected = $_POST['client_id'] ?? ''; // Mantener cliente seleccionado en caso de error
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? '')) {
@@ -20,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $items = $_POST['items'] ?? [];
         $client_id = (int)($_POST['client_id'] ?? 0);
+        $client_id_selected = $client_id; // Para mantenerlo seleccionado
 
         if (empty($items)) {
             $error = 'Debe seleccionar al menos un producto';
@@ -27,13 +32,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 // Iniciar transacción para asegurar la consistencia de los datos (factura e inventario)
                 $pdo->beginTransaction();
-                $total = 0;
+                $subtotal = 0; // Se usará para el total ANTES de IVA
 
-                // 1. Pre-validación y cálculo del total (con bloqueo de fila FOR UPDATE)
+                // 1. Pre-validación y cálculo del subtotal (con bloqueo de fila FOR UPDATE)
                 foreach ($items as $pid => $qty) {
                     $qty = (int)$qty;
                     if ($qty <= 0) continue;
 
+                    // Bloqueo de fila para evitar condiciones de carrera en el stock
                     $p = $pdo->prepare('SELECT * FROM productos WHERE id = ? FOR UPDATE');
                     $p->execute([$pid]);
                     $prod = $p->fetch();
@@ -42,15 +48,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         throw new Exception('Producto no existe: ' . $pid);
                     }
                     if ($prod['stock'] < $qty) {
-                        throw new Exception('Stock insuficiente para: ' . $prod['name']);
+                        throw new Exception('Stock insuficiente para: ' . htmlspecialchars($prod['name']) . '. Disponible: ' . $prod['stock']);
                     }
 
-                    $total += $prod['price'] * $qty;
+                    // Cálculo del subtotal (precio * cantidad)
+                    $subtotal += $prod['price'] * $qty;
                 }
+                
+                // --- CÁLCULO DE IVA AL 13% ---
+                $iva_amount = $subtotal * $iva_rate;
+                $total = $subtotal + $iva_amount;
+
 
                 // 2. Insertar la factura principal
-                $stmt = $pdo->prepare('INSERT INTO facturas (user_id, client_id, total) VALUES (?,?,?)');
-                $stmt->execute([$_SESSION['user']['id'], $client_id, $total]);
+                $stmt = $pdo->prepare('INSERT INTO facturas (user_id, client_id, subtotal, iva_amount, total) VALUES (?,?,?,?,?)');
+                $stmt->execute([$_SESSION['user']['id'], $client_id, $subtotal, $iva_amount, $total]);
                 $invoice_id = $pdo->lastInsertId();
 
                 // 3. Insertar los ítems de la factura y actualizar el stock
@@ -58,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $qty = (int)$qty;
                     if ($qty <= 0) continue;
 
-                    // Re-obtener el precio para evitar problemas de concurrencia y asegurar que sea el precio final
+                    // Re-obtener el precio para asegurar que sea el precio final (aunque ya lo tenemos bloqueado)
                     $p = $pdo->prepare('SELECT * FROM productos WHERE id = ?');
                     $p->execute([$pid]);
                     $prod = $p->fetch();
@@ -83,15 +95,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Registro de errores
                 $logPath = __DIR__ . '/../logs/error.log';
-
-                // Crear carpeta si no existe
                 $logDir = dirname($logPath);
                 if (!is_dir($logDir)) {
                     mkdir($logDir, 0777, true);
                 }
-
-                // Registrar error
-                file_put_contents($logPath, date('Y-m-d H:i:s') . " - $error\n", FILE_APPEND);
+                file_put_contents($logPath, date('Y-m-d H:i:s') . " - " . $e->getMessage() . "\n", FILE_APPEND);
             }
         }
     }
@@ -123,94 +131,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($error) echo '<div class="alert">' . htmlspecialchars($error) . '</div>'; ?>
 
         <form method="post">
-            <?php echo csrf_field(); ?>
+<?= csrf_field() ?>
 
-            <label>Cliente</label>
-            <select name="client_id" required style="width: 250px;">
-                <option value="">Seleccione un cliente</option>
-                <?php
-                // Ahora usamos $c['nombre'] gracias al alias en la consulta SQL
-                foreach ($clients as $c) echo "<option value='{$c['id']}'>" . htmlspecialchars($c['nombre']) . "</option>";
-                ?>
-            </select>
-            <br><br>
-            <!--Buscador de productos-->
-            <div class="form-floating"><input
-                type="text" 
-                id="buscador" 
-                placeholder="Buscar producto..." 
-                style="width:300px;padding:6px;margin-bottom:12px;"
-            ></div>
+<div style="display:flex; gap:20px;">
 
+    
 
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Producto</th>
-                        <th>Precio</th>
-                        <th>Stock</th>
-                        <th>Cantidad</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($products as $p): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($p['name']) ?></td>
-                            <td>$<?= number_format($p['price'], 2) ?></td>
-                            <td><?= $p['stock'] ?></td>
-                            <td>
-                                <input type="number"
-                                    name="items[<?= $p['id'] ?>]"
-                                    min="0"
-                                    max="<?= $p['stock'] ?>"
-                                    value="0">
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-
-            <h3 style="text-align:right;margin-top:20px;">
-                Total a pagar: $ <span id="totalPagar">0.00</span>
-            </h3>
-            <div style="text-align:right;margin-top:12px;">
-                <button class="btn">Generar factura</button>
+    <!-- ================= LISTA DE PRODUCTOS (IZQUIERDA) =================== -->
+    <div style="width:60%;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+            <div>
+                <label>Cliente</label>
+                <select name="client_id" required style="width:220px;">
+                    <option value="">Seleccione un cliente</option>
+                    <?php foreach ($clients as $c): ?>
+                        <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['nombre']) ?></option>
+                    <?php endforeach ?>
+                </select>
             </div>
-        </form>
+
+            <input type="text" id="buscador" placeholder="Buscar producto..." style="width:250px;">
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Cant</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($products as $p): ?>
+                <tr data-id="<?= $p['id'] ?>" data-name="<?= htmlspecialchars($p['name']) ?>"
+                    data-price="<?= $p['price'] ?>">
+                    
+                    <td><?= htmlspecialchars($p['name']) ?></td>
+                    <td>$<?= number_format($p['price'],2) ?></td>
+                    <td><?= $p['stock'] ?></td>
+
+                    <td>
+                        <input type="number" min="1" max="<?= $p['stock'] ?>" value="0"
+                            style="width:55px;">
+                    </td>
+
+                    <td>
+                        <button type="button" class="btn agregarBtn">Agregar</button>
+                    </td>
+
+                </tr>
+                <?php endforeach ?>
+            </tbody>
+        </table>
     </div>
-<script>// Script para calcular el total en tiempo real
-    function calcularTotal() {
-        let total = 0;
 
-        // Recorrer todas las filas de productos
-        document.querySelectorAll("table tbody tr").forEach(fila => {
-            let precio = parseFloat(fila.querySelector("td:nth-child(2)").textContent.replace('$',''));
-            let qty    = parseInt(fila.querySelector("input[type='number']").value) || 0;
+    <!-- ====================== CARRITO (DERECHA) ======================= -->
+    <div 
+    style="width:40%; background:#f8fff4; padding:15px; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
 
-            total += precio * qty;
-        });
+        <h3>Carrito</h3>
 
-        document.getElementById("totalPagar").textContent = total.toFixed(2);
-    }
+        <table class="table" id="carritoTabla">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cant</th>
+                    <th>Subtotal</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="carritoBody">
+                <tr><td colspan="4" style="text-align:center;color:#888;">No hay productos</td></tr>
+            </tbody>
+        </table>
 
-    // Activar cálculo cuando se cambien cantidades
-    document.querySelectorAll("input[type='number']").forEach(input => {
-        input.addEventListener("input", calcularTotal);
-    });
-</script>
+        <hr>
+        <div style="text-align:right;">
+            <p>Subtotal: $ <span id="subtotalPagar">0.00</span></p>
+            <p>IVA (13%): $ <span id="ivaMonto">0.00</span></p>
+            <h3>Total: $ <span id="totalPagar">0.00</span></h3>
+        </div>
+        <button class="btn" style="margin-top:10px; width:100%;">Procesar compra</button>
+    </div>
+
+</div>
+
+</form>
+
+</div>
+    
+<script src="../includes/carrito.js"></script>
+<script src="../includes/buscador.js"></script>
 
 </body>
-
-<script> // Scrip de búsqueda en la tabla de productos
-document.getElementById('buscador').addEventListener('input', function () {
-    let filtro = this.value.toLowerCase();
-    let filas = document.querySelectorAll("table tbody tr");
-
-    filas.forEach(fila => {
-        let nombre = fila.querySelector("td:first-child").textContent.toLowerCase();
-        fila.style.display = nombre.includes(filtro) ? "" : "none";
-    });
-});
-</script>
 
 </html>
