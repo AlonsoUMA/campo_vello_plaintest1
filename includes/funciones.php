@@ -33,4 +33,30 @@ function log_write($name, $msg){
         FILE_APPEND // Agrega el contenido al final del archivo
     ); 
 }
+
+// ----------------------------------------------------------------------
+// NUEVAS FUNCIONES DE HASHING DE CONTRASEÑAS (REQUERIDAS)
+// ----------------------------------------------------------------------
+
+/**
+ * Genera el hash de una contraseña usando el algoritmo BCRYPT.
+ * @param string $password La contraseña en texto plano.
+ * @return string El hash de la contraseña.
+ */
+function hash_password(string $password): string {
+    // Usamos PASSWORD_DEFAULT (actualmente BCRYPT) para hashing seguro.
+    return password_hash($password, PASSWORD_DEFAULT);
+}
+
+/**
+ * Verifica si una contraseña coincide con un hash dado.
+ * @param string $password La contraseña ingresada por el usuario (texto plano).
+ * @param string $hash El hash almacenado en la base de datos.
+ * @return bool True si la contraseña es correcta, False en caso contrario.
+ */
+function verify_password(string $password, string $hash): bool {
+    return password_verify($password, $hash);
+}
+
+// ----------------------------------------------------------------------
 ?>

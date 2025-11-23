@@ -4,10 +4,38 @@
 // ===================================
 // Carga la configuración base (DB, CSRF, Session)
 require_once __DIR__ . '/includes/config.php';
-// Carga las funciones de autenticación (is_logged, is_admin)
+// Carga las funciones de autenticación (is_logged, is_admin, login_user)
 require_once __DIR__ . '/includes/autenticacion.php';
+// Carga las funciones de utilidad (csrf_field, verify_csrf)
+require_once __DIR__ . '/includes/funciones.php'; 
 
-// Redirección si el usuario ya está logueado
+$error = null;
+
+// --- LÓGICA DE INICIO DE SESIÓN (MODIFICADA) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $email = $_POST['email'] ?? '';
+    $password = $_POST['password'] ?? '';
+    $csrf_token = $_POST['_csrf'] ?? '';
+
+    // 1. Verificar CSRF
+    if (!verify_csrf($csrf_token)) {
+        $error = "Error de seguridad. Intente de nuevo.";
+    } 
+    // 2. Intentar autenticar al usuario
+    elseif (login_user($email, $password)) {
+        // Redirección exitosa (la lógica de redirección se ejecuta después)
+        // No necesitamos hacer nada aquí, ya que la lógica general de redirección
+        // se maneja al final de esta sección de control.
+    } 
+    // 3. Autenticación fallida
+    else {
+        $error = "Credenciales incorrectas. Verifique su email y contraseña.";
+    }
+}
+// --- FIN LÓGICA DE INICIO DE SESIÓN ---
+
+
+// Redirección si el usuario ya está logueado O si el login POST fue exitoso
 if (is_logged()) {
     if (is_admin()) {
         header('Location: admin/dashboard.php');
@@ -17,9 +45,11 @@ if (is_logged()) {
     exit;
 }
 
-// Manejo de errores de inicio de sesión
-$error = $_SESSION['error'] ?? null;
-unset($_SESSION['error']);
+// Si hubo un error en el intento de POST, lo mostramos.
+// Si no hubo POST, la variable $error es null.
+// Esta sección reemplaza el manejo de errores de $_SESSION['error'] si se usaba un login.php
+// $error = $_SESSION['error'] ?? null;
+// unset($_SESSION['error']);
 ?>
 <!doctype html>
 <html lang="es">
@@ -48,7 +78,8 @@ unset($_SESSION['error']);
         } 
         ?>
         
-        <form method="post" action="login.php" style="max-width:420px;margin:0 auto;display:flex;flex-direction:column;gap:8px;">
+        <!-- El formulario ahora se envía a sí mismo (index.php) -->
+        <form method="post" action="index.php" style="max-width:420px;margin:0 auto;display:flex;flex-direction:column;gap:8px;">
             
             <?php 
             // Campo de seguridad CSRF
@@ -56,18 +87,17 @@ unset($_SESSION['error']);
             ?>
             
             <label for="email">Email</label>
-            <input type="email" name="email" id="email" pattern="[a-zA-Za-zA-ZñÑáÁéÉíÍóÓÚú@.\s]+]" required>
+            <!-- He ajustado el pattern del email para ser más general y evitar problemas de validación -->
+            <input type="email" name="email" id="email" required>
             
             <label for="password">Contraseña</label>
-            <input type="password" name="password" id="password" pattern="^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()_+])[^\\sñÑáéíóúÁÉÍÓÚ]{8,20}$" required>
+            <!-- He quitado el pattern complejo para no interferir con el login. 
+            La seguridad se maneja en el servidor con el hash. -->
+            <input type="password" name="password" id="password" required>
             
-            <div style="text-align:center;margin-top:8px;">
-                <button class="btn">Ingresar</button>
-            </div>
+            <button class="btn" style="margin-top:12px;">Entrar</button>
         </form>
-        
-        <p style="text-align:center;color:#666;margin-top:12px">
-        </p>
     </div>
+
 </body>
 </html>
