@@ -11,40 +11,77 @@ $pdo = getPDO();
 $iva_rate = 0.13; // 13% de IVA
 
 // ------------------------------------------------------------------
-// LÓGICA DE PAGINACIÓN PARA PRODUCTOS
+// LÓGICA DE BÚSQUEDA Y PAGINACIÓN PARA PRODUCTOS
 // ------------------------------------------------------------------
 
-// Variables de Paginación
+// Capturar término de búsqueda
+$search_query = $_GET['search'] ?? ''; 
+$is_searching = !empty($search_query);
+$search_param = '%' . $search_query . '%'; // Parámetro para LIKE
+
+// Variables de Paginación (solo se usan si NO se está buscando)
 $limit = 10; // 10 productos por página
 $page = (int) ($_GET['page'] ?? 1); // Página actual, por defecto 1
 
-// 1. Contar el total de productos en stock (> 0)
+// --- 1. Contar el total de productos (con o sin filtro de búsqueda) ---
 $count_sql = 'SELECT COUNT(id) FROM productos WHERE stock > 0';
+$main_sql = 'SELECT * FROM productos WHERE stock > 0';
+$params = [];
+
+// AÑADIR FILTRO DE BÚSQUEDA si existe
+if ($is_searching) {
+    $count_sql .= ' AND name LIKE :search';
+    $main_sql .= ' AND name LIKE :search';
+    $params[':search'] = $search_param;
+}
+
 $total_products_stmt = $pdo->prepare($count_sql);
+
+// BIND el parámetro de búsqueda si se está usando
+if ($is_searching) {
+    $total_products_stmt->bindValue(':search', $search_param, PDO::PARAM_STR);
+}
 $total_products_stmt->execute();
 $total_products = $total_products_stmt->fetchColumn();
 
-// Calcular el total de páginas
-$total_pages = ceil($total_products / $limit);
+// --- Lógica de Paginación (SÓLO si NO hay búsqueda) ---
+if ($is_searching) {
+    // Si se está buscando, no hay paginación:
+    $total_pages = 1;
+    $offset = 0;
+    $limit_clause = ''; // No LIMIT
+} else {
+    // Si NO se está buscando, aplicamos la paginación:
+    $total_pages = ceil($total_products / $limit);
 
-// Ajustar la página si es inválida
-if ($page < 1) $page = 1;
-if ($page > $total_pages && $total_products > 0) $page = $total_pages;
+    // Ajustar la página si es inválida
+    if ($page < 1) $page = 1;
+    if ($page > $total_pages && $total_products > 0) $page = $total_pages;
 
-// Calcular el punto de inicio (offset)
-$offset = ($page - 1) * $limit;
+    // Calcular el punto de inicio (offset)
+    $offset = ($page - 1) * $limit;
+    
+    // Agregar LIMIT y OFFSET a la consulta principal
+    $limit_clause = ' LIMIT :limit OFFSET :offset';
+    $params[':limit'] = $limit;
+    $params[':offset'] = $offset;
+}
 
-
-// 2. Obtener productos para la página actual
-$sql = '
-    SELECT * FROM productos 
-    WHERE stock > 0 
-    ORDER BY name
-    LIMIT :limit OFFSET :offset';
+// --- 2. Obtener productos para la vista actual (con/sin búsqueda/paginación) ---
+$sql = $main_sql . ' ORDER BY name' . $limit_clause;
 
 $stmt = $pdo->prepare($sql);
-$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
+// BIND todos los parámetros
+foreach ($params as $key => $value) {
+    // Determinamos el tipo de parámetro
+    $type = PDO::PARAM_STR;
+    if ($key === ':limit' || $key === ':offset') {
+        $type = PDO::PARAM_INT;
+    }
+    $stmt->bindValue($key, $value, $type);
+}
+
 $stmt->execute();
 $products = $stmt->fetchAll();
 
@@ -187,7 +224,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </select>
             </div>
 
-            <input type="text" id="buscador" placeholder="Buscar producto..." style="width:250px;">
+            <!-- MODIFICACIÓN: Campo de búsqueda -->
+            <div>
+                <input type="text" id="search_input" placeholder="Buscar producto..." 
+                    value="<?= htmlspecialchars($search_query) ?>" style="width:250px;"
+                    
+                    >
+                <button type="button" class="btn" id="search_button">Buscar</button>
+                <?php if ($is_searching): ?>
+                    <a href="nueva_factura.php" class="btn" style="background-color:#ccc; color:#333;">X</a>
+                    <p style="margin-top: 5px; font-size: 0.9em; color: #059669;">Mostrando <?= $total_products ?> resultados.</p>
+                <?php endif; ?>
+            </div>
         </div>
 
         <table class="table">
@@ -201,35 +249,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($products as $p): ?>
-                <tr data-id="<?= $p['id'] ?>" data-name="<?= htmlspecialchars($p['name']) ?>"
-                    data-price="<?= $p['price'] ?>">
-                    
-                    <td><?= htmlspecialchars($p['name']) ?></td>
-                    <td>$<?= number_format($p['price'],2) ?></td>
-                    <td><?= $p['stock'] ?></td>
+                <?php if (empty($products)): ?>
+                    <tr><td colspan="5" style="text-align: center; color: #666;">
+                        <?php if ($is_searching): ?>
+                            No se encontraron productos con el término "<?= htmlspecialchars($search_query) ?>"
+                        <?php else: ?>
+                            No hay productos disponibles en stock.
+                        <?php endif; ?>
+                    </td></tr>
+                <?php else: ?>
+                    <?php foreach ($products as $p): ?>
+                    <tr data-id="<?= $p['id'] ?>" data-name="<?= htmlspecialchars($p['name']) ?>"
+                        data-price="<?= $p['price'] ?>">
+                        
+                        <td><?= htmlspecialchars($p['name']) ?></td>
+                        <td>$<?= number_format($p['price'],2) ?></td>
+                        <td><?= $p['stock'] ?></td>
 
-                    <td>
-                        <input type="number" min="1" max="<?= $p['stock'] ?>" value=""
-                            style="width:55px;">
-                    </td>
+                        <td>
+                            <input type="number" min="1" max="<?= $p['stock'] ?>" value=""
+                                style="width:55px;">
+                        </td>
 
-                    <td>
-                        <button type="button" class="btn agregarBtn">Agregar</button>
-                    </td>
+                        <td>
+                            <button type="button" class="btn agregarBtn">Agregar</button>
+                        </td>
 
-                </tr>
-                <?php endforeach ?>
+                    </tr>
+                    <?php endforeach ?>
+                <?php endif; ?>
             </tbody>
         </table>
         
-        <div style="display: flex; justify-content: center; gap: 8px; margin-top: 20px;">
-            <?php if ($total_pages > 1) : ?>
+        <!-- Lógica de paginación solo si NO se está buscando -->
+        <?php if (!$is_searching && $total_pages > 1) : ?>
+            <div style="display: flex; justify-content: center; gap: 8px; margin-top: 20px;">
                 <?php 
                     // Genera la URL base y preserva otros parámetros GET (si los hubiera)
                     $base_url = basename($_SERVER['PHP_SELF']) . '?';
                     $query_params = $_GET;
                     unset($query_params['page']); // Quitamos la página actual
+                    // Aseguramos que 'search' esté vacío o no exista para no interferir con la paginación normal
+                    unset($query_params['search']);
 
                     // Convertimos el resto de parámetros GET a string para la URL
                     $base_query = http_build_query($query_params);
@@ -274,8 +335,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php else : ?>
                     <button class="btn" disabled>Siguiente</button>
                 <?php endif; ?>
-            <?php endif; ?>
-        </div>
+            </div>
+        <?php endif; // Fin de la paginación ?>
         </div> <div 
     style="width:40%; background:#f8fff4; padding:15px; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
 
@@ -311,7 +372,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
     
 <script src="../includes/carrito.js"></script>
-<script src="../includes/buscador.js"></script>
+<!-- MODIFICACIÓN: Adaptar el JS del buscador para que use el método GET -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search_input');
+    const searchButton = document.getElementById('search_button');
+
+    if (searchButton) {
+        searchButton.addEventListener('click', function() {
+            const query = searchInput.value.trim();
+            if (query) {
+                // Redirige a la página con el parámetro 'search' en la URL
+                window.location.href = `nueva_factura.php?search=${encodeURIComponent(query)}`;
+            } else {
+                // Si el campo está vacío, quita el parámetro 'search'
+                window.location.href = 'nueva_factura.php';
+            }
+        });
+
+        // Opcional: Permitir buscar presionando Enter
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Evita el envío del formulario si está dentro de uno
+                searchButton.click();
+            }
+        });
+    }
+    
+    // El script original de carrito.js se mantiene.
+    // document.getElementById('buscador') ya no se usa, ahora se usa el botón y input en HTML.
+});
+</script>
+
 
 </body>
 

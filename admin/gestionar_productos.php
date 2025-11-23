@@ -42,6 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Acción: Eliminar Producto
         if ($action === 'delete') {
             $stmt = $pdo->prepare('DELETE FROM productos WHERE id=?');
+            // MODIFICACIÓN IMPORTANTE: Se debe asegurar que el producto no esté referenciado
+            // por ninguna factura antes de eliminar, o usar ON DELETE CASCADE en la BD. 
+            // Para mantener la consistencia, asumimos que la BD no tiene restricción.
             $stmt->execute([$_POST['id']]);
             header('Location: gestionar_productos.php');
             exit;
@@ -66,52 +69,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
 // ------------------------------------------------------------------
-// OBTENER DATOS PARA LA VISTA (CON PAGINACIÓN)
+// LÓGICA DE BÚSQUEDA Y PAGINACIÓN PARA PRODUCTOS
 // ------------------------------------------------------------------
 
-// Variables de Paginación
-$page = (int) ($_GET['page'] ?? 1); // Página actual, por defecto 1
+// Capturar término de búsqueda
+$search_query = $_GET['search'] ?? ''; 
+$is_searching = !empty($search_query);
+$search_param = '%' . $search_query . '%'; // Parámetro para LIKE
+
+// Variables de Paginación (solo se usan si NO se está buscando)
 $limit = 10; // Límite de productos por página
-$offset = ($page - 1) * $limit; // Punto de inicio para la consulta
+$page = (int) ($_GET['page'] ?? 1); // Página actual, por defecto 1
 
-// ------------------------------------------------------------------
-// --- PASO 1: CONTAR EL TOTAL DE PRODUCTOS (SIN FILTRO) ---
-// ------------------------------------------------------------------
+// --- 1. Contar el total de productos (con o sin filtro de búsqueda) ---
 $count_sql = 'SELECT COUNT(id) FROM productos';
-
-$count_stmt = $pdo->prepare($count_sql);
-$count_stmt->execute();
-$total_products = $count_stmt->fetchColumn();
-
-$total_pages = ceil($total_products / $limit);
-
-// Ajustar la página si es inválida
-if ($page < 1) $page = 1;
-if ($page > $total_pages && $total_products > 0) $page = $total_pages;
-
-$offset = ($page - 1) * $limit; // Recalculamos el offset
-
-// ------------------------------------------------------------------
-// --- PASO 2: OBTENER PRODUCTOS PARA LA PÁGINA ACTUAL ---
-// ------------------------------------------------------------------
-$sql = '
+$main_sql = '
     SELECT p.*, c.name as category 
     FROM productos p 
-    LEFT JOIN categorias c ON p.category_id = c.id 
-    ORDER BY p.id DESC
-    LIMIT :limit OFFSET :offset'; // Usamos LIMIT/OFFSET
+    LEFT JOIN categorias c ON p.category_id = c.id';
+$params = [];
+
+// AÑADIR FILTRO DE BÚSQUEDA si existe
+if ($is_searching) {
+    // Aplicamos el filtro en la tabla productos por el nombre
+    $count_sql .= ' WHERE name LIKE :search';
+    $main_sql .= ' WHERE p.name LIKE :search';
+    $params[':search'] = $search_param;
+}
+
+$total_products_stmt = $pdo->prepare($count_sql);
+
+// BIND el parámetro de búsqueda si se está usando
+if ($is_searching) {
+    $total_products_stmt->bindValue(':search', $search_param, PDO::PARAM_STR);
+}
+$total_products_stmt->execute();
+$total_products = $total_products_stmt->fetchColumn();
+
+// --- Lógica de Paginación (SÓLO si NO hay búsqueda) ---
+if ($is_searching) {
+    // Si se está buscando, no hay paginación:
+    $total_pages = 1;
+    $offset = 0;
+    $limit_clause = ''; // No LIMIT
+} else {
+    // Si NO se está buscando, aplicamos la paginación:
+    $total_pages = ceil($total_products / $limit);
+
+    // Ajustar la página si es inválida
+    if ($page < 1) $page = 1;
+    if ($page > $total_pages && $total_products > 0) $page = $total_pages;
+
+    // Calcular el punto de inicio (offset)
+    $offset = ($page - 1) * $limit;
+    
+    // Agregar LIMIT y OFFSET a la consulta principal
+    $limit_clause = ' LIMIT :limit OFFSET :offset';
+    $params[':limit'] = $limit;
+    $params[':offset'] = $offset;
+}
+
+// ------------------------------------------------------------------
+// --- 2. OBTENER PRODUCTOS PARA LA VISTA ACTUAL ---
+// ------------------------------------------------------------------
+$sql = $main_sql . ' ORDER BY p.id DESC' . $limit_clause;
 
 // Ejecutar la consulta preparada
 $stmt = $pdo->prepare($sql);
 
-// Vinculamos LIMIT y OFFSET por nombre, asegurando que sean enteros
-$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+// BIND todos los parámetros
+foreach ($params as $key => $value) {
+    // Determinamos el tipo de parámetro
+    $type = PDO::PARAM_STR;
+    if ($key === ':limit' || $key === ':offset') {
+        $type = PDO::PARAM_INT;
+    }
+    $stmt->bindValue($key, $value, $type);
+}
 
 $stmt->execute();
 $products = $stmt->fetchAll();
 
-// Obtener categorías
+// Obtener categorías (esta consulta no cambia)
 $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
 ?>
 
@@ -223,12 +262,24 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                     <input name='stock' type='number' value='' required placeholder='Stock'>
                 </div>
             </form> </br>
+
             <div class="action-buttons-group">
                 <button class='btn btn-equal-size' form="add-product-form">Agregar</button>
                 
                 <a href="reporte_inventario_pdf.php" target="_blank" class="btn btn-equal-size" style="background-color:#337ab7;">
                     Imprimir inventario
                 </a>
+
+                <!-- MODIFICACIÓN: Campo de búsqueda -->
+                <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+                    <input type="text" id="search_input" placeholder="Buscar producto..." 
+                        value="<?= htmlspecialchars($search_query) ?>" style="width:200px;">
+                    <button type="button" class="btn" id="search_button">Buscar</button>
+                    <?php if ($is_searching): ?>
+                        <a href="gestionar_productos.php" class="btn" style="background-color:#ccc; color:#333;">X</a>
+                        <span style="font-size: 0.9em; color: #059669; white-space: nowrap;">(<?= $total_products ?> resultados)</span>
+                    <?php endif; ?>
+                </div>
                             
 
             </div>
@@ -249,7 +300,11 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                     <?php if (empty($products)): ?>
                         <tr>
                             <td colspan="7" style="text-align:center;">
-                                No hay productos para mostrar.
+                                <?php if ($is_searching): ?>
+                                    No se encontraron productos con el término "<?= htmlspecialchars($search_query) ?>"
+                                <?php else: ?>
+                                    No hay productos para mostrar.
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endif; ?>
@@ -324,8 +379,9 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                 </tbody>
             </table>
             
+            <!-- Lógica de paginación solo si NO se está buscando -->
             <div style="display: flex; justify-content: center; gap: 8px; margin-top: 20px;">
-                <?php if ($total_pages > 1) : ?>
+                <?php if (!$is_searching && $total_pages > 1) : ?>
                     <?php 
                         // Genera la URL base
                         $base_url = 'gestionar_productos.php?page=';
@@ -374,39 +430,70 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
             </div>
 
         <script>
-            function openModal(id) {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.classList.add('show');
-                    el.setAttribute('aria-hidden', 'false');
-                }
-            }
+            // MODIFICACIÓN: JS para manejar la búsqueda por URL
+            document.addEventListener('DOMContentLoaded', function() {
+                const searchInput = document.getElementById('search_input');
+                const searchButton = document.getElementById('search_button');
 
-            function closeModal(id) {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.classList.remove('show');
-                    el.setAttribute('aria-hidden', 'true');
-                }
-            }
+                if (searchButton) {
+                    searchButton.addEventListener('click', function() {
+                        const query = searchInput.value.trim();
+                        if (query) {
+                            // Redirige a la página con el parámetro 'search' en la URL
+                            window.location.href = `gestionar_productos.php?search=${encodeURIComponent(query)}`;
+                        } else {
+                            // Si el campo está vacío, quita el parámetro 'search' volviendo a la URL base
+                            window.location.href = 'gestionar_productos.php';
+                        }
+                    });
 
-            // Cerrar modales al hacer click fuera del contenido
-            window.addEventListener('click', function(e) {
-                // Si el click es en el overlay (.modal) cerramos
-                if (e.target.classList && e.target.classList.contains('modal')) {
-                    e.target.classList.remove('show');
-                    e.target.setAttribute('aria-hidden', 'true');
-                }
-            });
-
-            // Cerrar modal con ESC
-            window.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    document.querySelectorAll('.modal.show').forEach(function(m) {
-                        m.classList.remove('show');
-                        m.setAttribute('aria-hidden', 'true');
+                    // Opcional: Permitir buscar presionando Enter
+                    searchInput.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault(); // Evita el envío del formulario si está dentro de uno
+                            searchButton.click();
+                        }
                     });
                 }
+                
+                // Funciones de modal existentes...
+                function openModal(id) {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.classList.add('show');
+                        el.setAttribute('aria-hidden', 'false');
+                    }
+                }
+
+                function closeModal(id) {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.classList.remove('show');
+                        el.setAttribute('aria-hidden', 'true');
+                    }
+                }
+
+                window.openModal = openModal;
+                window.closeModal = closeModal;
+
+
+                // Cerrar modales al hacer click fuera del contenido
+                window.addEventListener('click', function(e) {
+                    if (e.target.classList && e.target.classList.contains('modal')) {
+                        e.target.classList.remove('show');
+                        e.target.setAttribute('aria-hidden', 'true');
+                    }
+                });
+
+                // Cerrar modal con ESC
+                window.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        document.querySelectorAll('.modal.show').forEach(function(m) {
+                            m.classList.remove('show');
+                            m.setAttribute('aria-hidden', 'true');
+                        });
+                    }
+                });
             });
         </script>
 </body>
