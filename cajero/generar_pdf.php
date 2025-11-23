@@ -31,12 +31,12 @@ if ($id <= 0) {
 
 // 1. Obtener datos de la factura, cliente y usuario
 $stmt = $pdo->prepare('SELECT f.*, 
-                            u.nombre as user_name, 
-                            cl.name as client_name, 
-                            cl.nit as client_nit,
-                            cl.phone as client_phone,
-                            cl.email as client_email,
-                            cl.address as client_address
+                             u.nombre as user_name, 
+                             cl.name as client_name, 
+                             cl.nit as client_nit,
+                             cl.phone as client_phone,
+                             cl.email as client_email,
+                             cl.address as client_address
                     FROM facturas f 
                     LEFT JOIN usuarios u ON f.user_id=u.id 
                     LEFT JOIN clientes cl ON f.client_id=cl.id 
@@ -289,7 +289,11 @@ ob_start();
                 </div>
                 
                 <p style="margin: 2px 0;"><strong>No. de Factura:</strong> <?php echo htmlspecialchars($invoice['id']); ?></p>
-                <p style="margin: 2px 0;"><strong>Fecha de Venta:</strong> <?php echo date('d/m/Y', strtotime($invoice['created_at'] ?? 'now')); ?></p>
+                
+                <p style="margin: 2px 0;">
+                    <strong>Fecha y Hora:</strong> 
+                    <?php echo date('d/m/Y H:i', strtotime($invoice['created_at'] ?? 'now')); ?>
+                </p>
                 
                 <p style="margin: 2px 0;"><strong>Dirección:</strong> Av Principal #123, El Calvario, Sonsonate</p>
                 <p style="margin: 2px 0;"><strong>Teléfono:</strong> (503) 4456-7890</p>

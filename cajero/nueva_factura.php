@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/autenticacion.php';
+require_once __DIR__ . '/../includes/funciones.php'; // Asegúrate de tener funciones.php para csrf_field()
 
 require_login();
 
@@ -9,9 +10,46 @@ $pdo = getPDO();
 // --- MODIFICACIÓN DE IVA: Tasa del impuesto ajustada al 13% ---
 $iva_rate = 0.13; // 13% de IVA
 
-// Obtener listas para el formulario
-$products = $pdo->query('SELECT * FROM productos WHERE stock > 0 ORDER BY name')->fetchAll();
+// ------------------------------------------------------------------
+// LÓGICA DE PAGINACIÓN PARA PRODUCTOS
+// ------------------------------------------------------------------
 
+// Variables de Paginación
+$limit = 10; // 10 productos por página
+$page = (int) ($_GET['page'] ?? 1); // Página actual, por defecto 1
+
+// 1. Contar el total de productos en stock (> 0)
+$count_sql = 'SELECT COUNT(id) FROM productos WHERE stock > 0';
+$total_products_stmt = $pdo->prepare($count_sql);
+$total_products_stmt->execute();
+$total_products = $total_products_stmt->fetchColumn();
+
+// Calcular el total de páginas
+$total_pages = ceil($total_products / $limit);
+
+// Ajustar la página si es inválida
+if ($page < 1) $page = 1;
+if ($page > $total_pages && $total_products > 0) $page = $total_pages;
+
+// Calcular el punto de inicio (offset)
+$offset = ($page - 1) * $limit;
+
+
+// 2. Obtener productos para la página actual
+$sql = '
+    SELECT * FROM productos 
+    WHERE stock > 0 
+    ORDER BY name
+    LIMIT :limit OFFSET :offset';
+
+$stmt = $pdo->prepare($sql);
+$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$stmt->execute();
+$products = $stmt->fetchAll();
+
+
+// Obtener listas para el formulario
 // MODIFICACIÓN: Se usa un ALIAS "name AS nombre" para poder usar la variable $c['nombre'] en el HTML.
 $clients = $pdo->query('SELECT id, name AS nombre FROM clientes ORDER BY name')->fetchAll();
 
@@ -118,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <nav>
         <div style="display:flex;gap:12px;align-items:center">
-            <img src="../assets/img/logo.svg" style="height:36px">
+            <img src="../assets/img/logo.svg" style="height:36px" alt="logo">
             <strong>Campo Vello - Cajero</strong>
         </div>
         <div>
@@ -137,8 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     
 
-    <!-- ================= LISTA DE PRODUCTOS (IZQUIERDA) =================== -->
-    <div style="width:60%;">
+    <div style="width:60%; display:flex; flex-direction:column;"> 
         <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
             <div>
                 <label>Cliente</label>
@@ -173,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <td><?= $p['stock'] ?></td>
 
                     <td>
-                        <input type="number" min="1" max="<?= $p['stock'] ?>" value="0"
+                        <input type="number" min="1" max="<?= $p['stock'] ?>" value=""
                             style="width:55px;">
                     </td>
 
@@ -185,10 +222,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endforeach ?>
             </tbody>
         </table>
-    </div>
+        
+        <div style="display: flex; justify-content: center; gap: 8px; margin-top: 20px;">
+            <?php if ($total_pages > 1) : ?>
+                <?php 
+                    // Genera la URL base y preserva otros parámetros GET (si los hubiera)
+                    $base_url = basename($_SERVER['PHP_SELF']) . '?';
+                    $query_params = $_GET;
+                    unset($query_params['page']); // Quitamos la página actual
 
-    <!-- ====================== CARRITO (DERECHA) ======================= -->
-    <div 
+                    // Convertimos el resto de parámetros GET a string para la URL
+                    $base_query = http_build_query($query_params);
+                    $base_url .= $base_query . (empty($base_query) ? '' : '&') . 'page=';
+                ?>
+
+                <?php if ($page > 1) : ?>
+                    <a href="<?= $base_url . ($page - 1) ?>" class="btn">Anterior</a>
+                <?php else : ?>
+                    <button class="btn" disabled>Anterior</button>
+                <?php endif; ?>
+
+                <?php 
+                    // Muestra hasta 5 páginas centradas alrededor de la página actual
+                    $start = max(1, $page - 2);
+                    $end = min($total_pages, $page + 2);
+
+                    if ($start > 1) {
+                        echo '<a href="' . $base_url . '1" class="btn" style="background-color:#eee; color:#333;">1</a>';
+                        if ($start > 2) {
+                            echo '<span style="padding: 6px 8px;">...</span>';
+                        }
+                    }
+                    
+                    for ($i = $start; $i <= $end; $i++) : ?>
+                        <a href="<?= $base_url . $i ?>" class="btn" style="<?= $i == $page ? 'background-color:#000; color:#fff;' : 'background-color:#eee; color:#333;' ?>">
+                            <?= $i ?>
+                        </a>
+                    <?php endfor; ?>
+
+                    <?php 
+                    if ($end < $total_pages) {
+                        if ($end < $total_pages - 1) {
+                            echo '<span style="padding: 6px 8px;">...</span>';
+                        }
+                        echo '<a href="' . $base_url . $total_pages . '" class="btn" style="background-color:#eee; color:#333;">' . $total_pages . '</a>';
+                    }
+                    ?>
+
+                <?php if ($page < $total_pages) : ?>
+                    <a href="<?= $base_url . ($page + 1) ?>" class="btn">Siguiente</a>
+                <?php else : ?>
+                    <button class="btn" disabled>Siguiente</button>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
+        </div> <div 
     style="width:40%; background:#f8fff4; padding:15px; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
 
         <h3>Carrito</h3>

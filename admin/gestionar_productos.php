@@ -17,7 +17,7 @@ if (!is_admin()) {
 $pdo = getPDO();
 $error = '';
 
-// Procesamiento de formulario POST
+// Procesamiento de formulario POST (Agregar, Eliminar, Actualizar)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 1. Verificación CSRF
     if (!verify_csrf($_POST['_csrf'] ?? '')) {
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare('INSERT INTO productos (name, category_id, location, price, stock) VALUES (?, ?, ?, ?, ?)');
             $stmt->execute([
                 $_POST['name'],
-                $_POST['category_id'] !== '' ? $_POST['category_id'] : null, // Usar null si está vacío
+                $_POST['category_id'] !== '' ? $_POST['category_id'] : null, 
                 $_POST['location'],
                 $_POST['price'],
                 $_POST['stock']
@@ -64,50 +64,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Obtener datos para la vista
-$products = $pdo->query('
+
+// ------------------------------------------------------------------
+// OBTENER DATOS PARA LA VISTA (CON PAGINACIÓN)
+// ------------------------------------------------------------------
+
+// Variables de Paginación
+$page = (int) ($_GET['page'] ?? 1); // Página actual, por defecto 1
+$limit = 10; // Límite de productos por página
+$offset = ($page - 1) * $limit; // Punto de inicio para la consulta
+
+// ------------------------------------------------------------------
+// --- PASO 1: CONTAR EL TOTAL DE PRODUCTOS (SIN FILTRO) ---
+// ------------------------------------------------------------------
+$count_sql = 'SELECT COUNT(id) FROM productos';
+
+$count_stmt = $pdo->prepare($count_sql);
+$count_stmt->execute();
+$total_products = $count_stmt->fetchColumn();
+
+$total_pages = ceil($total_products / $limit);
+
+// Ajustar la página si es inválida
+if ($page < 1) $page = 1;
+if ($page > $total_pages && $total_products > 0) $page = $total_pages;
+
+$offset = ($page - 1) * $limit; // Recalculamos el offset
+
+// ------------------------------------------------------------------
+// --- PASO 2: OBTENER PRODUCTOS PARA LA PÁGINA ACTUAL ---
+// ------------------------------------------------------------------
+$sql = '
     SELECT p.*, c.name as category 
     FROM productos p 
     LEFT JOIN categorias c ON p.category_id = c.id 
     ORDER BY p.id DESC
-')->fetchAll();
+    LIMIT :limit OFFSET :offset'; // Usamos LIMIT/OFFSET
 
+// Ejecutar la consulta preparada
+$stmt = $pdo->prepare($sql);
+
+// Vinculamos LIMIT y OFFSET por nombre, asegurando que sean enteros
+$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+
+$stmt->execute();
+$products = $stmt->fetchAll();
+
+// Obtener categorías
 $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
-
 ?>
 
 <!doctype html>
 <html lang="es">
+
 <head>
     <meta charset='utf-8'>
     <meta name='viewport' content='width=device-width,initial-scale=1'>
     <title>Gestionar Productos</title>
     <link rel='stylesheet' href='../assets/css/style.css'>
 
-    <!-- CSS mínimo para modal (puedes moverlo a style.css) -->
     <style>
         .modal {
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.5);
             justify-content: center;
             align-items: center;
             z-index: 9999;
             padding: 20px;
         }
+
         .modal.show {
             display: flex;
         }
+
         .modal .modal-content {
             background: #fff;
             border-radius: 8px;
             padding: 16px;
             max-width: 600px;
             width: 100%;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
             position: relative;
         }
+
         .modal .close {
             position: absolute;
             right: 8px;
@@ -117,166 +159,256 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
             font-size: 20px;
             cursor: pointer;
         }
-        .form-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-        .form-row input, .form-row select { padding:6px 8px; }
+
+        .form-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .form-row input,
+        .form-row select {
+            padding: 6px 8px;
+        }
+        
+        /* ESTILOS DE AGRUPACIÓN */
+        .action-buttons-group {
+            display: flex;  /* Alinea los elementos horizontalmente */
+            gap: 8px;       /* Espacio entre ellos */
+            margin-bottom: 20px; /* Separación debajo del grupo */
+            align-items: center; /* Centra verticalmente todos los elementos */
+        }
+
+        /* ESTILO CLAVE: Asegura que los botones Agregar/Imprimir tengan el mismo ancho */
+        .btn-equal-size {
+            width: 150px; /* Define un ancho fijo deseado para la igualdad */
+            text-align: center; /* Centra el texto dentro del botón */
+        }
     </style>
 </head>
+
 <body>
 
-<nav>
-    <div style='display:flex;gap:12px;align-items:center'>
-        <img src='../assets/img/logo.svg' style='height:36px' alt='logo'>
-        <strong>Campo Vello - Admin</strong>
-    </div>
-    <div>
-        <a href='dashboard.php' style='color:#fff' class="btn">Volver al panel</a>
-    </div>
-</nav>
+    <nav>
+        <div style='display:flex;gap:12px;align-items:center'>
+            <img src='../assets/img/logo.svg' style='height:36px' alt='logo'>
+            <strong>Campo Vello - Admin</strong>
+        </div>
+        <div>
+            <a href='dashboard.php' style='color:#fff' class="btn">Volver al panel</a>
+        </div>
+    </nav>
 
-<div class='container'>
-    <h2>Productos</h2>
+    <div class='container'>
+        <div class='container'>
+            <h2>Productos</h2>
 
-    <?php if (!empty($error)) echo '<div class="alert">'.htmlspecialchars($error).'</div>'; ?>
+            <?php if (!empty($error)) echo '<div class="alert">' . htmlspecialchars($error) . '</div>'; ?>
 
-    <form method='post' class='form-row'>
-        <?php echo csrf_field(); ?>
-        <input type='hidden' name='action' value='add'>
-        
-        <input name='name' placeholder='Nombre' required>
-        
-        <select name='category_id'>
-            <option value=''>Sin categoría</option>
-            <?php foreach ($categories as $c) : ?>
-                <option value='<?=htmlspecialchars($c['id'])?>'><?=htmlspecialchars($c['name'])?></option>
-            <?php endforeach; ?>
-        </select>
-        
-        <input name='location' placeholder='Ubicación'>
-        <input name='price' type='number' step='0.01' value='' required placeholder='Precio'>
-        <input name='stock' type='number' value='' required placeholder='Stock'>
-        
-        <button class='btn'>Agregar</button>
-    </form>
+            <form method='post' id="add-product-form">
+                <?php echo csrf_field(); ?>
+                <input type='hidden' name='action' value='add'>
 
-    <table class='table'>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Categoria</th>
-                <th>Ubicación</th>
-                <th>Precio</th>
-                <th>Stock</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($products as $p) : ?>
-            <tr>
-                <td><?=htmlspecialchars($p['id'])?></td>
-                <td><?=htmlspecialchars($p['name'])?></td>
-                <td><?=htmlspecialchars($p['category'])?></td>
-                <td><?=htmlspecialchars($p['location'])?></td>
-                <td>$<?=number_format($p['price'], 2)?></td>
-                <td><?=htmlspecialchars($p['stock'])?></td>
-                <td>
-                    <button class='btn' type="button" onclick="openModal('edit-<?=htmlspecialchars($p['id'])?>')">Editar</button> 
-                    
-                    <form method='post' style='display:inline-block' onsubmit="return confirm('¿Eliminar este producto?');">
-                        <?php echo csrf_field(); ?>
-                        <input type='hidden' name='action' value='delete'>
-                        <input type='hidden' name='id' value='<?=htmlspecialchars($p['id'])?>'>
-                        <button class='btn' style='background:#c62828'>Eliminar</button>
-                    </form>
-                </td>
-            </tr>
-
-            <!-- Modal de edición por producto -->
-            <div class="modal" id="edit-<?=htmlspecialchars($p['id'])?>" aria-hidden="true" role="dialog" aria-labelledby="edit-label-<?=htmlspecialchars($p['id'])?>">
-                <div class="modal-content">
-                    <button class="close" type="button" onclick="closeModal('edit-<?=htmlspecialchars($p['id'])?>')" aria-label="Cerrar">&times;</button>
-                    <h3 id="edit-label-<?=htmlspecialchars($p['id'])?>">Editar producto #<?=htmlspecialchars($p['id'])?></h3>
-                    <form method="post" class="form-row">
-                        <?php echo csrf_field(); ?>
-                        <input type="hidden" name="action" value="update">
-                        <input type="hidden" name="id" value="<?=htmlspecialchars($p['id'])?>">
-
-                        <label style="flex:1 1 100%">
-                            Nombre<br>
-                            <input name="name" required value="<?=htmlspecialchars($p['name'])?>">
-                        </label>
-
-                        <label>
-                            Categoría<br>
-                            <select name="category_id">
-                                <option value=''>Sin categoría</option>
-                                <?php foreach ($categories as $c) : ?>
-                                    <option value="<?=htmlspecialchars($c['id'])?>" <?=($p['category_id'] == $c['id']) ? 'selected' : ''?>><?=htmlspecialchars($c['name'])?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </label>
-
-                        <label>
-                            Ubicación<br>
-                            <input name="location" value="<?=htmlspecialchars($p['location'])?>">
-                        </label>
-
-                        <label>
-                            Precio<br>
-                            <input name="price" type="number" step="0.01" required value="<?=htmlspecialchars($p['price'])?>">
-                        </label>
-
-                        <label>
-                            Stock<br>
-                            <input name="stock" type="number" required value="<?=htmlspecialchars($p['stock'])?>">
-                        </label>
-
-                        <div style="flex:1 1 100%; display:flex; gap:8px; margin-top:8px;">
-                            <button class="btn" type="submit">Guardar cambios</button>
-                            <button class="btn" type="button" onclick="closeModal('edit-<?=htmlspecialchars($p['id'])?>')">Cancelar</button>
-                        </div>
-                    </form>
+                <div class="form-row">
+                    <input name='name' placeholder='Nombre' required>
+                    <select name='category_id'>
+                        <option value=''>Sin categoría</option>
+                        <?php foreach ($categories as $c) : ?>
+                            <option value='<?= htmlspecialchars($c['id']) ?>'><?= htmlspecialchars($c['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <input name='location' placeholder='Ubicación'>
+                    <input name='price' type='number' step='0.01' value='' required placeholder='Precio'>
+                    <input name='stock' type='number' value='' required placeholder='Stock'>
                 </div>
+            </form> </br>
+            <div class="action-buttons-group">
+                <button class='btn btn-equal-size' form="add-product-form">Agregar</button>
+                
+                <a href="reporte_inventario_pdf.php" target="_blank" class="btn btn-equal-size" style="background-color:#337ab7;">
+                    Imprimir inventario
+                </a>
+                            
+
             </div>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
-</div>
+            
+            <table class='table'>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Categoria</th>
+                        <th>Ubicación</th>
+                        <th>Precio</th>
+                        <th>Stock</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($products)): ?>
+                        <tr>
+                            <td colspan="7" style="text-align:center;">
+                                No hay productos para mostrar.
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                    
+                    <?php foreach ($products as $p) : ?>
+                        <tr>
+                            <td><?= htmlspecialchars($p['id']) ?></td>
+                            <td><?= htmlspecialchars($p['name']) ?></td>
+                            <td><?= htmlspecialchars($p['category']) ?></td>
+                            <td><?= htmlspecialchars($p['location']) ?></td>
+                            <td>$<?= number_format($p['price'], 2) ?></td>
+                            <td><?= htmlspecialchars($p['stock']) ?></td>
+                            <td>
+                                <button class='btn' type="button" onclick="openModal('edit-<?= htmlspecialchars($p['id']) ?>')">Editar</button>
 
-<script>
-    function openModal(id) {
-        const el = document.getElementById(id);
-        if (el) {
-            el.classList.add('show');
-            el.setAttribute('aria-hidden', 'false');
-        }
-    }
-    function closeModal(id) {
-        const el = document.getElementById(id);
-        if (el) {
-            el.classList.remove('show');
-            el.setAttribute('aria-hidden', 'true');
-        }
-    }
+                                <form method='post' style='display:inline-block' onsubmit="return confirm('¿Eliminar este producto?');">
+                                    <?php echo csrf_field(); ?>
+                                    <input type='hidden' name='action' value='delete'>
+                                    <input type='hidden' name='id' value='<?= htmlspecialchars($p['id']) ?>'>
+                                    <button class='btn' style='background:#c62828'>Eliminar</button>
+                                </form>
+                            </td>
+                        </tr>
 
-    // Cerrar modales al hacer click fuera del contenido
-    window.addEventListener('click', function(e) { 
-        // Si el click es en el overlay (.modal) cerramos
-        if (e.target.classList && e.target.classList.contains('modal')) {
-            e.target.classList.remove('show'); 
-            e.target.setAttribute('aria-hidden','true');
-        }
-    });
+                        <div class="modal" id="edit-<?= htmlspecialchars($p['id']) ?>" aria-hidden="true" role="dialog" aria-labelledby="edit-label-<?= htmlspecialchars($p['id']) ?>">
+                            <div class="modal-content">
+                                <button class="close" type="button" onclick="closeModal('edit-<?= htmlspecialchars($p['id']) ?>')" aria-label="Cerrar">&times;</button>
+                                <h3 id="edit-label-<?= htmlspecialchars($p['id']) ?>">Editar producto #<?= htmlspecialchars($p['id']) ?></h3>
+                                <form method="post" class="form-row">
+                                    <?php echo csrf_field(); ?>
+                                    <input type="hidden" name="action" value="update">
+                                    <input type="hidden" name="id" value="<?= htmlspecialchars($p['id']) ?>">
 
-    // Cerrar modal con ESC
-    window.addEventListener('keydown', function(e){
-        if (e.key === 'Escape') {
-            document.querySelectorAll('.modal.show').forEach(function(m){
-                m.classList.remove('show');
-                m.setAttribute('aria-hidden','true');
+                                    <label style="flex:1 1 100%">
+                                        Nombre<br>
+                                        <input name="name" required value="<?= htmlspecialchars($p['name']) ?>">
+                                    </label>
+
+                                    <label>
+                                        Categoría<br>
+                                        <select name="category_id">
+                                            <option value=''>Sin categoría</option>
+                                            <?php foreach ($categories as $c) : ?>
+                                                <option value="<?= htmlspecialchars($c['id']) ?>" <?= ($p['category_id'] == $c['id']) ? 'selected' : '' ?>><?= htmlspecialchars($c['name']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </label>
+
+                                    <label>
+                                        Ubicación<br>
+                                        <input name="location" value="<?= htmlspecialchars($p['location']) ?>">
+                                    </label>
+
+                                    <label>
+                                        Precio<br>
+                                        <input name="price" type="number" step="0.01" required value="<?= htmlspecialchars($p['price']) ?>">
+                                    </label>
+
+                                    <label>
+                                        Stock<br>
+                                        <input name="stock" type="number" required value="<?= htmlspecialchars($p['stock']) ?>">
+                                    </label>
+
+                                    <div style="flex:1 1 100%; display:flex; gap:8px; margin-top:8px;">
+                                        <button class="btn" type="submit">Guardar cambios</button>
+                                        <button class="btn" type="button" onclick="closeModal('edit-<?= htmlspecialchars($p['id']) ?>')">Cancelar</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            
+            <div style="display: flex; justify-content: center; gap: 8px; margin-top: 20px;">
+                <?php if ($total_pages > 1) : ?>
+                    <?php 
+                        // Genera la URL base
+                        $base_url = 'gestionar_productos.php?page=';
+                    ?>
+
+                    <?php if ($page > 1) : ?>
+                        <a href="<?= $base_url . ($page - 1) ?>" class="btn">Anterior</a>
+                    <?php else : ?>
+                        <button class="btn" disabled>Anterior</button>
+                    <?php endif; ?>
+
+                    <?php 
+                        // Muestra hasta 5 páginas centradas alrededor de la página actual
+                        $start = max(1, $page - 2);
+                        $end = min($total_pages, $page + 2);
+
+                        if ($start > 1) {
+                            echo '<a href="' . $base_url . '1" class="btn" style="background-color:#eee; color:#333;">1</a>';
+                            if ($start > 2) {
+                                echo '<span style="padding: 6px 8px;">...</span>';
+                            }
+                        }
+                        
+                        for ($i = $start; $i <= $end; $i++) : ?>
+                            <a href="<?= $base_url . $i ?>" class="btn" style="<?= $i == $page ? 'background-color:#000; color:#fff;' : 'background-color:#eee; color:#333;' ?>">
+                                <?= $i ?>
+                            </a>
+                        <?php endfor; ?>
+
+                        <?php 
+                        if ($end < $total_pages) {
+                            if ($end < $total_pages - 1) {
+                                echo '<span style="padding: 6px 8px;">...</span>';
+                            }
+                            echo '<a href="' . $base_url . $total_pages . '" class="btn" style="background-color:#eee; color:#333;">' . $total_pages . '</a>';
+                        }
+                        ?>
+
+                    <?php if ($page < $total_pages) : ?>
+                        <a href="<?= $base_url . ($page + 1) ?>" class="btn">Siguiente</a>
+                    <?php else : ?>
+                        <button class="btn" disabled>Siguiente</button>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+            </div>
+
+        <script>
+            function openModal(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.add('show');
+                    el.setAttribute('aria-hidden', 'false');
+                }
+            }
+
+            function closeModal(id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.remove('show');
+                    el.setAttribute('aria-hidden', 'true');
+                }
+            }
+
+            // Cerrar modales al hacer click fuera del contenido
+            window.addEventListener('click', function(e) {
+                // Si el click es en el overlay (.modal) cerramos
+                if (e.target.classList && e.target.classList.contains('modal')) {
+                    e.target.classList.remove('show');
+                    e.target.setAttribute('aria-hidden', 'true');
+                }
             });
-        }
-    });
-</script>
+
+            // Cerrar modal con ESC
+            window.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    document.querySelectorAll('.modal.show').forEach(function(m) {
+                        m.classList.remove('show');
+                        m.setAttribute('aria-hidden', 'true');
+                    });
+                }
+            });
+        </script>
 </body>
+
 </html>
