@@ -1,9 +1,16 @@
 <?php
 /**
  * includes/autenticacion.php - funciones de autenticación y roles
- * NOTA: Utiliza contraseñas en texto plano para pruebas locales según la descripción original.
  */
 require_once __DIR__ . '/config.php';
+// Requerimos funciones.php para acceder a hash_password, verify_password y getPDO
+require_once __DIR__ . '/funciones.php'; 
+
+// Asegúrate de iniciar la sesión antes de cualquier salida
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 
 /**
  * Intenta iniciar sesión con el correo electrónico y la contraseña proporcionados.
@@ -19,8 +26,8 @@ function login_user($email, $password)
     $stmt->execute([$email]);
     $u = $stmt->fetch();
 
-    // Verificación de la contraseña (en texto plano)
-    if ($u && $u['password'] === $password) {
+    // CAMBIO CLAVE: Usamos verify_password para comparar el texto plano con el hash
+    if ($u && verify_password($password, $u['password'])) {
         unset($u['password']); // Elimina la contraseña de la sesión por seguridad
         $_SESSION['user'] = $u;
         return true;
@@ -33,6 +40,10 @@ function login_user($email, $password)
  */
 function logout_user()
 {
+    // Asegúrate de iniciar la sesión si no lo está
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
     unset($_SESSION['user']);
     session_destroy();
 }
@@ -44,6 +55,9 @@ function logout_user()
  */
 function is_logged()
 { 
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
     return !empty($_SESSION['user']); 
 }
 
@@ -65,17 +79,19 @@ function require_login()
  */
 function current_user()
 { 
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
     return $_SESSION['user'] ?? null; 
 }
 
 /**
- * Verifica si el usuario actualmente logueado tiene el rol de 'admin'.
+ * Verifica si el usuario actualmente logueado tiene el rol de administrador.
  *
  * @return bool Devuelve true si es administrador, false en caso contrario.
  */
 function is_admin()
-{ 
-    $u = current_user(); 
-    return $u && ($u['role'] === 'admin'); 
+{
+    $user = current_user();
+    return $user && ($user['role'] === 'admin');
 }
-?>
