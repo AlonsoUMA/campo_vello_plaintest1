@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 14-11-2025 a las 23:52:58
+-- Tiempo de generación: 18-11-2025 a las 06:20:25
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -20,9 +20,6 @@ SET time_zone = "+00:00";
 --
 -- Base de datos: `campo_vello`
 --
-drop database if exists `campo_vello`;
-CREATE DATABASE `campo_vello`;
-USE `campo_vello`;
 
 -- --------------------------------------------------------
 
@@ -68,7 +65,10 @@ CREATE TABLE `clientes` (
 
 INSERT INTO `clientes` (`id`, `name`, `nit`, `address`, `phone`, `email`, `created_at`) VALUES
 (1, 'Cliente Demo A', '00000000-1', 'Av. Siempre Viva 123', '+503-1234-5678', 'clienteA@local', '2025-11-13 16:01:44'),
-(2, 'Cliente Demo B', '00000000-2', 'Calle Falsa 456', '+503-8765-4321', 'clienteB@local', '2025-11-13 16:01:44');
+(2, 'Cliente Demo B', '00000000-2', 'Calle Falsa 456', '+503-8765-4321', 'clienteB@local', '2025-11-13 16:01:44'),
+(3, 'Raul Antonio Ponce', '00000000-5', 'Sonsonate, Izalco', '7345-7392', 'RP@1.com', '2025-11-15 00:07:03'),
+(4, 'Salvador Eduardo Flores', '00000000-1', 'Sonsonate', '7345-7392', 'SF@1.com', '2025-11-15 00:10:14'),
+(5, 'Miguel Bermudes', '00000000-4', 'Metalio', '0000-2222', 'MB@g.com', '2025-11-15 01:50:00');
 
 -- --------------------------------------------------------
 
@@ -80,6 +80,8 @@ CREATE TABLE `facturas` (
   `id` int(11) NOT NULL,
   `user_id` int(11) DEFAULT NULL,
   `client_id` int(11) DEFAULT NULL,
+  `subtotal` decimal(12,2) DEFAULT 0.00,
+  `iva_amount` decimal(12,2) DEFAULT 0.00,
   `total` decimal(12,2) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -88,9 +90,17 @@ CREATE TABLE `facturas` (
 -- Volcado de datos para la tabla `facturas`
 --
 
-INSERT INTO `facturas` (`id`, `user_id`, `client_id`, `total`, `created_at`) VALUES
-(1, 2, 1, 121.00, '2025-11-13 16:47:38'),
-(2, 2, 2, 78.00, '2025-11-13 16:52:21');
+INSERT INTO `facturas` (`id`, `user_id`, `client_id`, `subtotal`, `iva_amount`, `total`, `created_at`) VALUES
+(1, 2, 1, 0.00, 0.00, 121.00, '2025-11-13 16:47:38'),
+(2, 2, 2, 0.00, 0.00, 78.00, '2025-11-13 16:52:21'),
+(3, 2, 4, 0.00, 0.00, 96.00, '2025-11-15 00:19:54'),
+(4, 2, 5, 0.00, 0.00, 121.00, '2025-11-15 01:52:17'),
+(5, 6, 4, 0.00, 0.00, 25.00, '2025-11-17 03:51:45'),
+(7, 6, 5, 0.00, 0.00, 290.00, '2025-11-17 03:57:07'),
+(8, 2, 3, 0.00, 0.00, 0.00, '2025-11-17 23:38:49'),
+(9, 2, 3, 0.00, 0.00, 0.00, '2025-11-17 23:39:25'),
+(10, 2, 3, 0.00, 0.00, 25.00, '2025-11-17 23:39:36'),
+(11, 2, 4, 100.00, 13.00, 113.00, '2025-11-18 05:18:31');
 
 -- --------------------------------------------------------
 
@@ -114,7 +124,15 @@ INSERT INTO `invoice_items` (`id`, `invoice_id`, `product_id`, `quantity`, `pric
 (1, 1, 11, 1, 96.00),
 (2, 1, 8, 1, 25.00),
 (3, 2, 5, 2, 30.00),
-(4, 2, 6, 1, 18.00);
+(4, 2, 6, 1, 18.00),
+(5, 3, 11, 1, 96.00),
+(6, 4, 11, 1, 96.00),
+(7, 4, 8, 1, 25.00),
+(8, 5, 7, 1, 25.00),
+(9, 7, 7, 2, 25.00),
+(10, 7, 5, 8, 30.00),
+(11, 10, 7, 1, 25.00),
+(12, 11, 7, 4, 25.00);
 
 -- --------------------------------------------------------
 
@@ -138,12 +156,12 @@ CREATE TABLE `productos` (
 INSERT INTO `productos` (`id`, `name`, `category_id`, `location`, `price`, `stock`) VALUES
 (3, 'Maicillo', 2, 'Estante1', 12.50, 10),
 (4, 'Guantes', 5, 'Estante 2', 5.00, 8),
-(5, 'Semilla Maíz', 2, 'Estante 1', 30.00, 8),
+(5, 'Semilla Maíz', 2, 'Estante 1', 30.00, 0),
 (6, 'Sulfato de Amonio 45 KG', 4, 'Estante 3', 18.00, 3),
-(7, 'Cipermetrina', 3, 'Estante 4', 25.00, 8),
-(8, 'Gramoxone Galon', 1, 'Estante 5', 25.00, 4),
+(7, 'Cipermetrina', 3, 'Estante 4', 25.00, 0),
+(8, 'Gramoxone Galon', 1, 'Estante 5', 25.00, 3),
 (10, 'Gramoxone litro', 1, 'estante 5', 15.00, 5),
-(11, 'Bomba fumigadora de 16 litros Jacto', 5, 'Estante 2', 96.00, 2);
+(11, 'Bomba fumigadora de 16 litros Jacto', 5, 'Estante 2', 96.00, 0);
 
 -- --------------------------------------------------------
 
@@ -167,7 +185,8 @@ CREATE TABLE `usuarios` (
 INSERT INTO `usuarios` (`id`, `nombre`, `email`, `password`, `role`, `created_at`) VALUES
 (1, 'Administrador', 'admin@local', 'Admin123!', 'admin', '2025-11-13 16:01:44'),
 (2, 'Cajero', 'cajero@local', 'Cajero123!', 'cajero', '2025-11-13 16:01:44'),
-(4, 'Carlos Daniel Rauda', 'Rauda@admin.com', 'AdminAdmin', 'admin', '2025-11-13 16:51:23');
+(4, 'Carlos Daniel Rauda', 'Rauda@admin.com', 'AdminAdmin', 'admin', '2025-11-13 16:51:23'),
+(6, 'Carlos Daniel Rauda', 'CRcajero@1.com', 'Cajero', 'cajero', '2025-11-17 03:50:00');
 
 --
 -- Índices para tablas volcadas
@@ -230,19 +249,19 @@ ALTER TABLE `categorias`
 -- AUTO_INCREMENT de la tabla `clientes`
 --
 ALTER TABLE `clientes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT de la tabla `facturas`
 --
 ALTER TABLE `facturas`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT de la tabla `invoice_items`
 --
 ALTER TABLE `invoice_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT de la tabla `productos`
@@ -254,7 +273,7 @@ ALTER TABLE `productos`
 -- AUTO_INCREMENT de la tabla `usuarios`
 --
 ALTER TABLE `usuarios`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- Restricciones para tablas volcadas

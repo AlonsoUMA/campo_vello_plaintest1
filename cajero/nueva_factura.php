@@ -1,18 +1,97 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/autenticacion.php';
+require_once __DIR__ . '/../includes/funciones.php'; // Asegúrate de tener funciones.php para csrf_field()
 
 require_login();
 
 $pdo = getPDO();
 
-// Obtener listas para el formulario
-$products = $pdo->query('SELECT * FROM productos WHERE stock > 0 ORDER BY name')->fetchAll();
+// --- MODIFICACIÓN DE IVA: Tasa del impuesto ajustada al 13% ---
+$iva_rate = 0.13; // 13% de IVA
 
+// ------------------------------------------------------------------
+// LÓGICA DE BÚSQUEDA Y PAGINACIÓN PARA PRODUCTOS
+// ------------------------------------------------------------------
+
+// Capturar término de búsqueda
+$search_query = $_GET['search'] ?? ''; 
+$is_searching = !empty($search_query);
+$search_param = '%' . $search_query . '%'; // Parámetro para LIKE
+
+// Variables de Paginación (solo se usan si NO se está buscando)
+$limit = 10; // 10 productos por página
+$page = (int) ($_GET['page'] ?? 1); // Página actual, por defecto 1
+
+// --- 1. Contar el total de productos (con o sin filtro de búsqueda) ---
+$count_sql = 'SELECT COUNT(id) FROM productos WHERE stock > 0';
+$main_sql = 'SELECT * FROM productos WHERE stock > 0';
+$params = [];
+
+// AÑADIR FILTRO DE BÚSQUEDA si existe
+if ($is_searching) {
+    $count_sql .= ' AND name LIKE :search';
+    $main_sql .= ' AND name LIKE :search';
+    $params[':search'] = $search_param;
+}
+
+$total_products_stmt = $pdo->prepare($count_sql);
+
+// BIND el parámetro de búsqueda si se está usando
+if ($is_searching) {
+    $total_products_stmt->bindValue(':search', $search_param, PDO::PARAM_STR);
+}
+$total_products_stmt->execute();
+$total_products = $total_products_stmt->fetchColumn();
+
+// --- Lógica de Paginación (SÓLO si NO hay búsqueda) ---
+if ($is_searching) {
+    // Si se está buscando, no hay paginación:
+    $total_pages = 1;
+    $offset = 0;
+    $limit_clause = ''; // No LIMIT
+} else {
+    // Si NO se está buscando, aplicamos la paginación:
+    $total_pages = ceil($total_products / $limit);
+
+    // Ajustar la página si es inválida
+    if ($page < 1) $page = 1;
+    if ($page > $total_pages && $total_products > 0) $page = $total_pages;
+
+    // Calcular el punto de inicio (offset)
+    $offset = ($page - 1) * $limit;
+    
+    // Agregar LIMIT y OFFSET a la consulta principal
+    $limit_clause = ' LIMIT :limit OFFSET :offset';
+    $params[':limit'] = $limit;
+    $params[':offset'] = $offset;
+}
+
+// --- 2. Obtener productos para la vista actual (con/sin búsqueda/paginación) ---
+$sql = $main_sql . ' ORDER BY name' . $limit_clause;
+
+$stmt = $pdo->prepare($sql);
+
+// BIND todos los parámetros
+foreach ($params as $key => $value) {
+    // Determinamos el tipo de parámetro
+    $type = PDO::PARAM_STR;
+    if ($key === ':limit' || $key === ':offset') {
+        $type = PDO::PARAM_INT;
+    }
+    $stmt->bindValue($key, $value, $type);
+}
+
+$stmt->execute();
+$products = $stmt->fetchAll();
+
+
+// Obtener listas para el formulario
 // MODIFICACIÓN: Se usa un ALIAS "name AS nombre" para poder usar la variable $c['nombre'] en el HTML.
 $clients = $pdo->query('SELECT id, name AS nombre FROM clientes ORDER BY name')->fetchAll();
 
 $error = null;
+$client_id_selected = $_POST['client_id'] ?? ''; // Mantener cliente seleccionado en caso de error
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? '')) {
@@ -20,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $items = $_POST['items'] ?? [];
         $client_id = (int)($_POST['client_id'] ?? 0);
+        $client_id_selected = $client_id; // Para mantenerlo seleccionado
 
         if (empty($items)) {
             $error = 'Debe seleccionar al menos un producto';
@@ -27,13 +107,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 // Iniciar transacción para asegurar la consistencia de los datos (factura e inventario)
                 $pdo->beginTransaction();
-                $total = 0;
+                $subtotal = 0; // Se usará para el total ANTES de IVA
 
-                // 1. Pre-validación y cálculo del total (con bloqueo de fila FOR UPDATE)
+                // 1. Pre-validación y cálculo del subtotal (con bloqueo de fila FOR UPDATE)
                 foreach ($items as $pid => $qty) {
                     $qty = (int)$qty;
                     if ($qty <= 0) continue;
 
+                    // Bloqueo de fila para evitar condiciones de carrera en el stock
                     $p = $pdo->prepare('SELECT * FROM productos WHERE id = ? FOR UPDATE');
                     $p->execute([$pid]);
                     $prod = $p->fetch();
@@ -42,15 +123,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         throw new Exception('Producto no existe: ' . $pid);
                     }
                     if ($prod['stock'] < $qty) {
-                        throw new Exception('Stock insuficiente para: ' . $prod['name']);
+                        throw new Exception('Stock insuficiente para: ' . htmlspecialchars($prod['name']) . '. Disponible: ' . $prod['stock']);
                     }
 
-                    $total += $prod['price'] * $qty;
+                    // Cálculo del subtotal (precio * cantidad)
+                    $subtotal += $prod['price'] * $qty;
                 }
+                
+                // --- CÁLCULO DE IVA AL 13% ---
+                $iva_amount = $subtotal * $iva_rate;
+                $total = $subtotal + $iva_amount;
+
 
                 // 2. Insertar la factura principal
-                $stmt = $pdo->prepare('INSERT INTO facturas (user_id, client_id, total) VALUES (?,?,?)');
-                $stmt->execute([$_SESSION['user']['id'], $client_id, $total]);
+                $stmt = $pdo->prepare('INSERT INTO facturas (user_id, client_id, subtotal, iva_amount, total) VALUES (?,?,?,?,?)');
+                $stmt->execute([$_SESSION['user']['id'], $client_id, $subtotal, $iva_amount, $total]);
                 $invoice_id = $pdo->lastInsertId();
 
                 // 3. Insertar los ítems de la factura y actualizar el stock
@@ -58,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $qty = (int)$qty;
                     if ($qty <= 0) continue;
 
-                    // Re-obtener el precio para evitar problemas de concurrencia y asegurar que sea el precio final
+                    // Re-obtener el precio para asegurar que sea el precio final (aunque ya lo tenemos bloqueado)
                     $p = $pdo->prepare('SELECT * FROM productos WHERE id = ?');
                     $p->execute([$pid]);
                     $prod = $p->fetch();
@@ -83,15 +170,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Registro de errores
                 $logPath = __DIR__ . '/../logs/error.log';
-
-                // Crear carpeta si no existe
                 $logDir = dirname($logPath);
                 if (!is_dir($logDir)) {
                     mkdir($logDir, 0777, true);
                 }
-
-                // Registrar error
-                file_put_contents($logPath, date('Y-m-d H:i:s') . " - $error\n", FILE_APPEND);
+                file_put_contents($logPath, date('Y-m-d H:i:s') . " - " . $e->getMessage() . "\n", FILE_APPEND);
             }
         }
     }
@@ -110,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <nav>
         <div style="display:flex;gap:12px;align-items:center">
-            <img src="../assets/img/logo.svg" style="height:36px">
+            <img src="../assets/img/logo.svg" style="height:36px" alt="logo">
             <strong>Campo Vello - Cajero</strong>
         </div>
         <div>
@@ -123,94 +206,205 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($error) echo '<div class="alert">' . htmlspecialchars($error) . '</div>'; ?>
 
         <form method="post">
-            <?php echo csrf_field(); ?>
+<?= csrf_field() ?>
 
-            <label>Cliente</label>
-            <select name="client_id" required style="width: 250px;">
-                <option value="">Seleccione un cliente</option>
-                <?php
-                // Ahora usamos $c['nombre'] gracias al alias en la consulta SQL
-                foreach ($clients as $c) echo "<option value='{$c['id']}'>" . htmlspecialchars($c['nombre']) . "</option>";
-                ?>
-            </select>
-            <br><br>
-            <!--Buscador de productos-->
-            <div class="form-floating"><input
-                type="text" 
-                id="buscador" 
-                placeholder="Buscar producto..." 
-                style="width:300px;padding:6px;margin-bottom:12px;"
-            ></div>
+<div style="display:flex; gap:20px;">
 
+    
 
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Producto</th>
-                        <th>Precio</th>
-                        <th>Stock</th>
-                        <th>Cantidad</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($products as $p): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($p['name']) ?></td>
-                            <td>$<?= number_format($p['price'], 2) ?></td>
-                            <td><?= $p['stock'] ?></td>
-                            <td>
-                                <input type="number"
-                                    name="items[<?= $p['id'] ?>]"
-                                    min="0"
-                                    max="<?= $p['stock'] ?>"
-                                    value="0">
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-
-            <h3 style="text-align:right;margin-top:20px;">
-                Total a pagar: $ <span id="totalPagar">0.00</span>
-            </h3>
-            <div style="text-align:right;margin-top:12px;">
-                <button class="btn">Generar factura</button>
+    <div style="width:60%; display:flex; flex-direction:column;"> 
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+            <div>
+                <label>Cliente</label>
+                <select name="client_id" required style="width:220px;">
+                    <option value="">Seleccione un cliente</option>
+                    <?php foreach ($clients as $c): ?>
+                        <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['nombre']) ?></option>
+                    <?php endforeach ?>
+                </select>
             </div>
-        </form>
+
+            <!-- MODIFICACIÓN: Campo de búsqueda -->
+            <div>
+                <input type="text" id="search_input" placeholder="Buscar producto..." 
+                    value="<?= htmlspecialchars($search_query) ?>" style="width:250px;"
+                    
+                    >
+                <button type="button" class="btn" id="search_button">Buscar</button>
+                <?php if ($is_searching): ?>
+                    <a href="nueva_factura.php" class="btn" style="background-color:#ccc; color:#333;">X</a>
+                    <p style="margin-top: 5px; font-size: 0.9em; color: #059669;">Mostrando <?= $total_products ?> resultados.</p>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Cant</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($products)): ?>
+                    <tr><td colspan="5" style="text-align: center; color: #666;">
+                        <?php if ($is_searching): ?>
+                            No se encontraron productos con el término "<?= htmlspecialchars($search_query) ?>"
+                        <?php else: ?>
+                            No hay productos disponibles en stock.
+                        <?php endif; ?>
+                    </td></tr>
+                <?php else: ?>
+                    <?php foreach ($products as $p): ?>
+                    <tr data-id="<?= $p['id'] ?>" data-name="<?= htmlspecialchars($p['name']) ?>"
+                        data-price="<?= $p['price'] ?>">
+                        
+                        <td><?= htmlspecialchars($p['name']) ?></td>
+                        <td>$<?= number_format($p['price'],2) ?></td>
+                        <td><?= $p['stock'] ?></td>
+
+                        <td>
+                            <input type="number" min="1" max="<?= $p['stock'] ?>" value=""
+                                style="width:55px;">
+                        </td>
+
+                        <td>
+                            <button type="button" class="btn agregarBtn">Agregar</button>
+                        </td>
+
+                    </tr>
+                    <?php endforeach ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+        
+        <!-- Lógica de paginación solo si NO se está buscando -->
+        <?php if (!$is_searching && $total_pages > 1) : ?>
+            <div style="display: flex; justify-content: center; gap: 8px; margin-top: 20px;">
+                <?php 
+                    // Genera la URL base y preserva otros parámetros GET (si los hubiera)
+                    $base_url = basename($_SERVER['PHP_SELF']) . '?';
+                    $query_params = $_GET;
+                    unset($query_params['page']); // Quitamos la página actual
+                    // Aseguramos que 'search' esté vacío o no exista para no interferir con la paginación normal
+                    unset($query_params['search']);
+
+                    // Convertimos el resto de parámetros GET a string para la URL
+                    $base_query = http_build_query($query_params);
+                    $base_url .= $base_query . (empty($base_query) ? '' : '&') . 'page=';
+                ?>
+
+                <?php if ($page > 1) : ?>
+                    <a href="<?= $base_url . ($page - 1) ?>" class="btn">Anterior</a>
+                <?php else : ?>
+                    <button class="btn" disabled>Anterior</button>
+                <?php endif; ?>
+
+                <?php 
+                    // Muestra hasta 5 páginas centradas alrededor de la página actual
+                    $start = max(1, $page - 2);
+                    $end = min($total_pages, $page + 2);
+
+                    if ($start > 1) {
+                        echo '<a href="' . $base_url . '1" class="btn" style="background-color:#eee; color:#333;">1</a>';
+                        if ($start > 2) {
+                            echo '<span style="padding: 6px 8px;">...</span>';
+                        }
+                    }
+                    
+                    for ($i = $start; $i <= $end; $i++) : ?>
+                        <a href="<?= $base_url . $i ?>" class="btn" style="<?= $i == $page ? 'background-color:#000; color:#fff;' : 'background-color:#eee; color:#333;' ?>">
+                            <?= $i ?>
+                        </a>
+                    <?php endfor; ?>
+
+                    <?php 
+                    if ($end < $total_pages) {
+                        if ($end < $total_pages - 1) {
+                            echo '<span style="padding: 6px 8px;">...</span>';
+                        }
+                        echo '<a href="' . $base_url . $total_pages . '" class="btn" style="background-color:#eee; color:#333;">' . $total_pages . '</a>';
+                    }
+                    ?>
+
+                <?php if ($page < $total_pages) : ?>
+                    <a href="<?= $base_url . ($page + 1) ?>" class="btn">Siguiente</a>
+                <?php else : ?>
+                    <button class="btn" disabled>Siguiente</button>
+                <?php endif; ?>
+            </div>
+        <?php endif; // Fin de la paginación ?>
+        </div> <div 
+    style="width:40%; background:#f8fff4; padding:15px; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+
+        <h3>Carrito</h3>
+
+        <table class="table" id="carritoTabla">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cant</th>
+                    <th>Subtotal</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="carritoBody">
+                <tr><td colspan="4" style="text-align:center;color:#888;">No hay productos</td></tr>
+            </tbody>
+        </table>
+
+        <hr>
+        <div style="text-align:right;">
+            <p>Subtotal: $ <span id="subtotalPagar">0.00</span></p>
+            <p>IVA (13%): $ <span id="ivaMonto">0.00</span></p>
+            <h3>Total: $ <span id="totalPagar">0.00</span></h3>
+        </div>
+        <button class="btn" style="margin-top:10px; width:100%;">Procesar compra</button>
     </div>
-<script>// Script para calcular el total en tiempo real
-    function calcularTotal() {
-        let total = 0;
 
-        // Recorrer todas las filas de productos
-        document.querySelectorAll("table tbody tr").forEach(fila => {
-            let precio = parseFloat(fila.querySelector("td:nth-child(2)").textContent.replace('$',''));
-            let qty    = parseInt(fila.querySelector("input[type='number']").value) || 0;
+</div>
 
-            total += precio * qty;
+</form>
+
+</div>
+    
+<script src="../includes/carrito.js"></script>
+<!-- MODIFICACIÓN: Adaptar el JS del buscador para que use el método GET -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search_input');
+    const searchButton = document.getElementById('search_button');
+
+    if (searchButton) {
+        searchButton.addEventListener('click', function() {
+            const query = searchInput.value.trim();
+            if (query) {
+                // Redirige a la página con el parámetro 'search' en la URL
+                window.location.href = `nueva_factura.php?search=${encodeURIComponent(query)}`;
+            } else {
+                // Si el campo está vacío, quita el parámetro 'search'
+                window.location.href = 'nueva_factura.php';
+            }
         });
 
-        document.getElementById("totalPagar").textContent = total.toFixed(2);
+        // Opcional: Permitir buscar presionando Enter
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Evita el envío del formulario si está dentro de uno
+                searchButton.click();
+            }
+        });
     }
-
-    // Activar cálculo cuando se cambien cantidades
-    document.querySelectorAll("input[type='number']").forEach(input => {
-        input.addEventListener("input", calcularTotal);
-    });
-</script>
-
-</body>
-
-<script> // Scrip de búsqueda en la tabla de productos
-document.getElementById('buscador').addEventListener('input', function () {
-    let filtro = this.value.toLowerCase();
-    let filas = document.querySelectorAll("table tbody tr");
-
-    filas.forEach(fila => {
-        let nombre = fila.querySelector("td:first-child").textContent.toLowerCase();
-        fila.style.display = nombre.includes(filtro) ? "" : "none";
-    });
+    
+    // El script original de carrito.js se mantiene.
+    // document.getElementById('buscador') ya no se usa, ahora se usa el botón y input en HTML.
 });
 </script>
+
+
+</body>
 
 </html>

@@ -51,20 +51,20 @@ unset($_SESSION['mensaje']);
             ?>
             
             <label for="name">Nombre Completo</label>
-            <input type="text" name="name" id="name" required maxlength="50"> 
+            <input type="text" name="name" id="name" pattern="[a-zA-ZñÑáÁéÉíÍóÓÚú\s]+" required maxlength="50"> 
             
             <label for="phone">Teléfono (9 dígitos con guion)</label>
-            <input type="text" name="phone" id="phone" maxlength="9"  placeholder="Ej: 0000-0000">
+            <input type="text" name="phone" id="phone" maxlength="9"pattern="[0-9]" required placeholder="Ej: 0000-0000">
             
             <label for="email">Email</label>
-            <input type="email" name="email" id="email" maxlength="50"placeholder="Ej: Julano@123.com">
+            <input type="email" name="email" id="email" maxlength="50" required placeholder="Ej: Julano@123.com">
             
             
             <label for="nit">Dui (Número de Identificación Personal)</label>
-            <input type="text" name="nit" id="nit" maxlength="20" placeholder="Ej: 00000000-0"> 
+            <input type="text" name="nit" id="nit" maxlength="20" required placeholder="Ej: 00000000-0"> 
             
             <label for="address">Dirección</label>
-            <textarea name="address" id="address" rows="3" maxlength="255"></textarea> 
+            <textarea name="address" id="address" rows="3" required maxlength="255"></textarea> 
 
             <div style="text-align:center;margin-top:16px;">
                 <button type="submit" class="btn" style="background-color:#5cb85c;">Guardar Cliente</button>
