@@ -78,22 +78,23 @@ if (is_logged()) {
         } 
         ?>
         
-        <!-- El formulario ahora se envía a sí mismo (index.php) -->
         <form method="post" action="index.php" style="max-width:420px;margin:0 auto;display:flex;flex-direction:column;gap:8px;">
             
             <?php 
-            // Campo de seguridad CSRF
             echo csrf_field(); 
             ?>
             
             <label for="email">Email</label>
-            <!-- He ajustado el pattern del email para ser más general y evitar problemas de validación -->
-            <input type="email" name="email" id="email" required>
+            <input type="email" name="email" id="email" pattern="^[\w.-]+@[\w.-]+\.[a-zA-Z]{2,15}$"
+                title="Debe tener formato de correo electrónico (ej: nombre@dominio.com)" required
+            >
             
             <label for="password">Contraseña</label>
-            <!-- He quitado el pattern complejo para no interferir con el login. 
-            La seguridad se maneja en el servidor con el hash. -->
-            <input type="password" name="password" id="password" required>
+            <input type="password" name="password" id="password"
+                
+                title="Debe tener entre 8 y 15 caracteres, incluyendo al menos una letra mayuscula, una minuscula, sin tildes y un número."
+                required
+            >
             
             <button class="btn" style="margin-top:12px;">Entrar</button>
         </form>
@@ -101,3 +102,5 @@ if (is_logged()) {
 
 </body>
 </html>
+
+    <!--pattern="(?=.*[A-Za-zñÑ])(?=.*\d)[A-Za-zñÑ\d]{8,15}"-->

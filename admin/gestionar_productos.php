@@ -250,14 +250,14 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                 <input type='hidden' name='action' value='add'>
 
                 <div class="form-row">
-                    <input name='name' placeholder='Nombre' required>
-                    <select name='category_id'>
+                    <input name='name' placeholder='Nombre' pattern="[a-zA-Z0-9ñÑáÁéÉíÍóÓúÚ\s\-,()]+" required>
+                    <select name='category_id' required>
                         <option value=''>Sin categoría</option>
                         <?php foreach ($categories as $c) : ?>
                             <option value='<?= htmlspecialchars($c['id']) ?>'><?= htmlspecialchars($c['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <input name='location' placeholder='Ubicación'>
+                    <input name='location' pattern="[a-zA-Z0-9ñÑáÁéÉíÍóÓúÚ\s\-,()]+" required placeholder='Ubicación'>
                     <input name='price' type='number' step='0.01' value='' required placeholder='Precio'>
                     <input name='stock' type='number' value='' required placeholder='Stock'>
                 </div>
@@ -270,9 +270,10 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
                     Imprimir inventario
                 </a>
 
-                <!-- MODIFICACIÓN: Campo de búsqueda -->
+                <!--Campo de búsqueda -->
                 <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
-                    <input type="text" id="search_input" placeholder="Buscar producto..." 
+                    <input type="text" id="search_input" placeholder="Buscar producto..."
+                        pattern="a-zA-Z0-9ñÑáÁéÉíÍóÓúÚ\s]+"
                         value="<?= htmlspecialchars($search_query) ?>" style="width:200px;">
                     <button type="button" class="btn" id="search_button">Buscar</button>
                     <?php if ($is_searching): ?>
@@ -340,13 +341,13 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
 
                                     <label style="flex:1 1 100%">
                                         Nombre<br>
-                                        <input name="name" required value="<?= htmlspecialchars($p['name']) ?>">
+                                        <input name="name" pattern="[a-zA-Z0-9ñÑáÁéÉíÍóÓúÚ\s\-,()]+" required value="<?= htmlspecialchars($p['name']) ?>">
                                     </label>
 
                                     <label>
                                         Categoría<br>
                                         <select name="category_id">
-                                            <option value=''>Sin categoría</option>
+                                            <option value='' required>Sin categoría</option>
                                             <?php foreach ($categories as $c) : ?>
                                                 <option value="<?= htmlspecialchars($c['id']) ?>" <?= ($p['category_id'] == $c['id']) ? 'selected' : '' ?>><?= htmlspecialchars($c['name']) ?></option>
                                             <?php endforeach; ?>
@@ -355,7 +356,7 @@ $categories = $pdo->query('SELECT * FROM categorias')->fetchAll();
 
                                     <label>
                                         Ubicación<br>
-                                        <input name="location" value="<?= htmlspecialchars($p['location']) ?>">
+                                        <input name="location" pattern="[a-zA-Z0-9ñÑáÁéÉíÍóÓúÚ\s\-,()]+" value="<?= htmlspecialchars($p['location']) ?>">
                                     </label>
 
                                     <label>

@@ -1,15 +1,8 @@
 <?php
-
-/**
- * 1. Lógica y Seguridad
- */
-
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/autenticacion.php';
-// Aseguramos que las funciones de hashing estén disponibles
 require_once __DIR__ . '/../includes/funciones.php';
 
-// Redirigir si el usuario no es administrador
 if (!is_admin()) {
     header('Location: ../index.php');
     exit;
@@ -26,7 +19,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = $_POST['action'] ?? '';
 
-        // Acción: Agregar Usuario
         if ($action === 'add') {
             $password = $_POST['password'] ?? '';
             
@@ -34,7 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (empty($password)) {
                 $error = 'La contraseña no puede estar vacía.';
             } else {
-                // --- CAMBIO CLAVE: HASHEAR LA CONTRASEÑA ---
                 $hashed_password = hash_password($password);
 
                 try {
@@ -42,13 +33,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ->execute([
                             $_POST['nombre'],
                             $_POST['email'],
-                            $hashed_password, // Se guarda el hash
+                            $hashed_password,
                             $_POST['role']
                         ]);
                     header('Location: gestionar_usuarios.php');
                     exit;
                 } catch (PDOException $e) {
-                    if ($e->getCode() == 23000) { // Error de clave única (ej: email duplicado)
+                    if ($e->getCode() == 23000) {
                         $error = 'El email o nombre de usuario ya existe.';
                     } else {
                         $error = 'Error al agregar usuario: ' . $e->getMessage();
@@ -64,13 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         
-        // ******************************************************
-        // LÓGICA DE ACTUALIZACIÓN (DEBERÍAS IMPLEMENTAR ESTO AQUÍ)
-        // Por ahora, solo es un placeholder.
-        // ******************************************************
         if ($action === 'update') {
-            // Lógica para actualizar usuario. 
-            // SI se recibe un nuevo campo 'password', ¡debe ser hasheado antes de la actualización!
         }
     }
 }
@@ -106,13 +91,13 @@ $users = $pdo->query('SELECT * FROM usuarios ORDER BY id DESC')->fetchAll();
     <?php if (!empty($error)) echo '<div class="alert">'.htmlspecialchars($error).'</div>'; ?>
 
     <!-- Formulario para agregar usuario -->
-    <form method="post" style="display:flex;gap:8px;margin-bottom:12px; flex-wrap: wrap;">
+    <form method="post" style="display:flex;gap:8px;margin-bottom:12px">
         <?php echo csrf_field(); ?>
         <input type="hidden" name="action" value="add">
         
-        <input name="nombre" placeholder="Nombre" required style="flex-grow: 1; min-width: 150px;">
-        <input name="email" placeholder="Email" required type="email" style="flex-grow: 1; min-width: 150px;">
-        <input name="password" placeholder="Contraseña" required type="password" style="flex-grow: 1; min-width: 150px;">
+        <input name="nombre" placeholder="Nombre" required style="flex-grow: 1; min-width: 150px;" pattern="[a-zA-ZñÑáÁéÉíÍóÓÚú\s]+" maxlength="50">
+        <input name="email" placeholder="Email" required type="email" pattern="^[\w.-]+@[\w.-]+\.[a-zA-Z]{2,15}$" title="Debe tener formato de correo electrónico (ej: nombre@dominio.com)" style="flex-grow: 1; min-width: 150px;">
+        <input name="password" placeholder="Contraseña" required type="password" pattern="(?=.*[A-Za-zñÑ])(?=.*\d)[A-Za-zñÑ\d]{8,15}" title="Debe tener entre 8 y 15 caracteres, incluyendo al menos una letra mayuscula, una minuscula, sin tildes y un número." style="flex-grow: 1; min-width: 150px;">
         
         <select name="role">
             <option value="cajero">Cajero</option>
@@ -140,7 +125,6 @@ $users = $pdo->query('SELECT * FROM usuarios ORDER BY id DESC')->fetchAll();
                 <td><?=htmlspecialchars($u['email'])?></td>
                 <td><?=$u['role']?></td>
                 <td>
-                    <!-- NOTA: Aquí se podría añadir un botón "Editar" que abra un modal, similar a gestionar_productos -->
                     <form method="post" style="display:inline-block" onsubmit="return confirm('¿Eliminar al usuario <?= htmlspecialchars($u['nombre']) ?>?');">
                         <?php echo csrf_field(); ?>
                         <input type="hidden" name="action" value="delete">

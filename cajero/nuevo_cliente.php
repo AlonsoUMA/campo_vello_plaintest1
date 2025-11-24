@@ -51,7 +51,7 @@ unset($_SESSION['mensaje']);
             ?>
             
             <label for="name">Nombre Completo</label>
-            <input type="text" name="name" id="name" pattern="[a-zA-ZñÑáÁéÉíÍóÓÚú\s]+" required maxlength="50"> 
+            <input type="text" name="name" id="name" pattern="[a-zA-ZñÑáÁéÉíÍóÓÚú\s\-,()]+" required maxlength="50"> 
             
             <label for="phone">Teléfono (9 dígitos con guion)</label>
             <input type="text" name="phone" id="phone" maxlength="9"pattern="\d{4}-\d{4}" required placeholder="Ej: 0000-0000">
@@ -64,7 +64,7 @@ unset($_SESSION['mensaje']);
             <input type="text" name="nit" id="nit" maxlength="10" pattern="\d{8}-\d{1}" required placeholder="Ej: 00000000-0"> 
             
             <label for="address">Dirección</label>
-            <textarea name="address" id="address" rows="3" required maxlength="255"></textarea> 
+            <input name="address" id="address" rows="3" pattern="[a-zA-ZñÑáÁéÉíÍóÓÚú\s\-,.]+" required maxlength="255"></input> 
 
             <div style="text-align:center;margin-top:16px;">
                 <button type="submit" class="btn" style="background-color:#5cb85c;">Guardar Cliente</button>
