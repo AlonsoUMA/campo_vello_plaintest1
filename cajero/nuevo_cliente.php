@@ -54,14 +54,14 @@ unset($_SESSION['mensaje']);
             <input type="text" name="name" id="name" pattern="[a-zA-ZñÑáÁéÉíÍóÓÚú\s]+" required maxlength="50"> 
             
             <label for="phone">Teléfono (9 dígitos con guion)</label>
-            <input type="text" name="phone" id="phone" maxlength="9"pattern="[0-9]" required placeholder="Ej: 0000-0000">
+            <input type="text" name="phone" id="phone" maxlength="9"pattern="\d{4}-\d{4}" required placeholder="Ej: 0000-0000">
             
             <label for="email">Email</label>
             <input type="email" name="email" id="email" maxlength="50" required placeholder="Ej: Julano@123.com">
             
             
-            <label for="nit">Dui (Número de Identificación Personal)</label>
-            <input type="text" name="nit" id="nit" maxlength="20" required placeholder="Ej: 00000000-0"> 
+            <label for="nit">DUI (Número de Identificación Personal)</label>
+            <input type="text" name="nit" id="nit" maxlength="10" pattern="\d{8}-\d{1}" required placeholder="Ej: 00000000-0"> 
             
             <label for="address">Dirección</label>
             <textarea name="address" id="address" rows="3" required maxlength="255"></textarea> 

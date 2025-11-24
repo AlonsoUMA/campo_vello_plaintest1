@@ -91,7 +91,7 @@ $products = $stmt->fetchAll();
 $clients = $pdo->query('SELECT id, name AS nombre FROM clientes ORDER BY name')->fetchAll();
 
 $error = null;
-$client_id_selected = $_POST['client_id'] ?? ''; // Mantener cliente seleccionado en caso de error
+$client_id_selected = $_POST['client_id'] ?? $_GET['client_id'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? '')) {
@@ -219,7 +219,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <select name="client_id" required style="width:220px;">
                     <option value="">Seleccione un cliente</option>
                     <?php foreach ($clients as $c): ?>
-                        <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['nombre']) ?></option>
+                        <option value="<?= $c['id'] ?>" 
+                            <?= $c['id'] == $client_id_selected ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($c['nombre']) ?>
+                        </option>
                     <?php endforeach ?>
                 </select>
             </div>
@@ -374,18 +377,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="../includes/carrito.js"></script>
 <!-- MODIFICACIÓN: Adaptar el JS del buscador para que use el método GET -->
 <script>
+// CÓDIGO CORREGIDO (Líneas ~335 en adelante)
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search_input');
     const searchButton = document.getElementById('search_button');
+    // NUEVA LÍNEA: Obtener el elemento select del cliente
+    const clientSelect = document.querySelector('select[name="client_id"]');
 
     if (searchButton) {
         searchButton.addEventListener('click', function() {
             const query = searchInput.value.trim();
+            // NUEVAS LÍNEAS: Obtener y codificar el ID del cliente seleccionado
+            const clientId = clientSelect.value;
+            let params = new URLSearchParams();
+
             if (query) {
-                // Redirige a la página con el parámetro 'search' en la URL
-                window.location.href = `nueva_factura.php?search=${encodeURIComponent(query)}`;
-            } else {
-                // Si el campo está vacío, quita el parámetro 'search'
+                params.append('search', query);
+            }
+            
+            // Si hay un cliente seleccionado, lo añadimos a los parámetros
+            if (clientId) {
+                params.append('client_id', clientId);
+            }
+
+            // Construye la URL final:
+            window.location.href = `nueva_factura.php?${params.toString()}`;
+
+            // Si el campo está vacío Y NO hay cliente seleccionado, simplemente vamos a la página base
+            if (!query && !clientId) {
                 window.location.href = 'nueva_factura.php';
             }
         });
@@ -393,15 +412,29 @@ document.addEventListener('DOMContentLoaded', function() {
         // Opcional: Permitir buscar presionando Enter
         searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                e.preventDefault(); // Evita el envío del formulario si está dentro de uno
+                e.preventDefault();
                 searchButton.click();
             }
         });
     }
     
     // El script original de carrito.js se mantiene.
-    // document.getElementById('buscador') ya no se usa, ahora se usa el botón y input en HTML.
+    
+    // NUEVA LÍNEA: Persistir la selección del cliente al cambiar (opcional, pero útil)
+    clientSelect.addEventListener('change', function() {
+        const currentParams = new URLSearchParams(window.location.search);
+        
+        if (this.value) {
+            currentParams.set('client_id', this.value);
+        } else {
+            currentParams.delete('client_id');
+        }
+        
+        // Reconstruir la URL manteniendo 'search' y 'page' si existen
+        window.history.pushState(null, '', '?' + currentParams.toString());
+    });
 });
+</script>
 </script>
 
 
