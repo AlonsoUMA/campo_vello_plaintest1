@@ -161,8 +161,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $pdo->commit();
 
-                // Redirigir para generar el PDF de la factura
-                header('Location: generar_pdf.php?id=' . $invoice_id);
+                $ventas_url = 'ventas.php';
+                $pdf_url = 'generar_pdf.php?id=' . $invoice_id; // URL del PDF
+
+                // --- SOLUCIÓN ROBUSTA: Envía HTML con script para ejecutar el flujo ---
+                // Nota: Usar ob_start() al inicio del archivo podría ayudar a capturar salidas tempranas si el problema es persistente.
+                echo '<!DOCTYPE html><html><head><title>Procesando Compra...</title></head><body>';
+                echo '<script type="text/javascript">';
+                
+                // 1. Abre el PDF en una nueva pestaña (no interfiere con la ventana principal)
+                echo 'window.open("' . htmlspecialchars($pdf_url) . '", "_blank");'; 
+
+                echo 'localStorage.removeItem("facturaCarrito");';
+                
+                // 3. Redirige la ventana principal a ventas.php
+                echo 'window.location.href = "' . htmlspecialchars($ventas_url) . '";'; 
+                
+                echo '</script>';
+                echo '</body></html>';
+
                 exit;
             } catch (Exception $e) {
                 $pdo->rollBack();
@@ -235,7 +252,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     >
                 <button type="button" class="btn" id="search_button">Buscar</button>
                 <?php if ($is_searching): ?>
-                    <a href="nueva_factura.php" class="btn" style="background-color:#ccc; color:#333;">X</a>
                     <p style="margin-top: 5px; font-size: 0.9em; color: #059669;">Mostrando <?= $total_products ?> resultados.</p>
                 <?php endif; ?>
             </div>
