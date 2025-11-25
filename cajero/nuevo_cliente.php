@@ -30,8 +30,7 @@ unset($_SESSION['mensaje']);
         </div>
         <div>
             <a href="ventas.php" class="btn">Volver al panel</a>
-            <!--<a href="../logout.php" class="btn" style="background-color:#d9534f;">Cerrar Sesión</a>-->
-        </div>
+            </div>
     </nav>
     
     <div class="container">
@@ -51,7 +50,7 @@ unset($_SESSION['mensaje']);
             ?>
             
             <label for="name">Nombre Completo</label>
-            <input type="text" name="name" id="name" pattern="[a-zA-ZñÑáÁéÉíÍóÓÚú\s\-,()]+" required maxlength="50"> 
+            <input type="text" name="name" id="name" pattern="[a-zA-ZñÑáÁéÉíÍóÓÚú\s\-,()]+" required maxlength="50" onkeydown="return filterName(event)"> 
             
             <label for="phone">Teléfono (9 dígitos con guion)</label>
             <input type="text" name="phone" id="phone" maxlength="9"pattern="\d{4}-\d{4}" required placeholder="Ej: 0000-0000">
@@ -71,5 +70,50 @@ unset($_SESSION['mensaje']);
             </div>
         </form>
     </div>
+    
+    <script>
+        /**
+         * Función JavaScript para filtrar las pulsaciones de teclado en el campo de nombre.
+         * Permite: letras (a-z, A-Z), letras acentuadas (Á, É, etc.), 'ñ', espacios, 
+         * guiones (-), comas (,) y paréntesis ((), ).
+         * También permite teclas especiales como Tab, Retroceso, Eliminar, Flechas, etc.
+         */
+        function filterName(event) {
+            const key = event.key;
+            
+            // 1. Permite teclas de control esenciales
+            if (event.ctrlKey || event.altKey || event.metaKey || 
+                key === 'Tab' || key === 'Backspace' || key === 'Delete' || 
+                key.startsWith('Arrow') || key === 'Home' || key === 'End') {
+                return true; 
+            }
+            
+            // 2. Patrón de caracteres permitidos (letras, espacios y puntuación específica)
+            const allowedPattern = /^[a-zA-ZñÑáÁéÉíÍóÓÚú\s\-,()]$/;
+            
+            // 3. Bloquea si la tecla presionada no coincide con el patrón de permitidos.
+            if (key.length === 1 && !allowedPattern.test(key)) {
+                event.preventDefault(); 
+                return false;
+            }
+            
+            return true;
+        }
+    </script>
+
+     <footer style="
+        position: fixed; 
+        bottom: 0; 
+        width: 100%; 
+        text-align: center; 
+        padding: 10px 0; 
+        background: #f4f4f9; /* Fondo similar al body */
+        border-top: 1px solid #ddd;
+        font-size: 0.85em;
+        color: #555;
+    ">
+        &copy; <?= date('Y') ?> Campo Vello. Todos los derechos reservados.
+    </footer>
+
 </body>
 </html>

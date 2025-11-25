@@ -1,15 +1,15 @@
 <?php
 // Incluye el archivo de autocarga (autoload) de Composer
-require '../vendor/autoload.php'; 
+require '../vendor/autoload.php';
 
 // === SOLUCIÓN AL PROBLEMA DE LA HORA ADELANTADA ===
 // Establece la zona horaria a El Salvador (o la que corresponda a tu ubicación)
-date_default_timezone_set('America/El_Salvador'); 
+date_default_timezone_set('America/El_Salvador');
 // ==================================================
 
 // Usa la clase de Dompdf
-use Dompdf\Dompdf; 
-use Dompdf\Options; 
+use Dompdf\Dompdf;
+use Dompdf\Options;
 
 /**
  * 1. Lógica y Seguridad
@@ -246,6 +246,8 @@ $html .= '
             Gracias por su confianza. Campo Vello: su aliado en el campo.
         </p>
     </div>
+
+    
 </body>
 </html>';
 
@@ -255,7 +257,7 @@ $html .= '
 
 // Configurar opciones de Dompdf
 $options = new Options();
-$options->set('isRemoteEnabled', true); 
+$options->set('isRemoteEnabled', true);
 $options->set('defaultFont', 'Helvetica');
 $options->set('isHtml5ParserEnabled', true);
 
@@ -266,7 +268,7 @@ $dompdf = new Dompdf($options);
 $dompdf->loadHtml($html);
 
 // Formato de hoja Vertical
-$dompdf->setPaper('A4', 'portrait'); 
+$dompdf->setPaper('A4', 'portrait');
 
 // Renderizar el HTML a PDF
 $dompdf->render();
@@ -274,5 +276,6 @@ $dompdf->render();
 // Enviar el PDF al navegador para que se muestre en línea (Attachment => false)
 $dompdf->stream("Reporte_Inventario_" . date('Ymd') . ".pdf", array("Attachment" => false));
 
+
+
 exit;
-?>

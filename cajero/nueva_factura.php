@@ -453,6 +453,21 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 </script>
 
+ <footer style="
+        position: fixed; 
+        bottom: 0; 
+        width: 100%; 
+        text-align: center; 
+        padding: 10px 0; 
+        background: #f4f4f9; /* Fondo similar al body */
+        border-top: 1px solid #ddd;
+        font-size: 0.85em;
+        color: #555;
+    ">
+        &copy; <?= date('Y') ?> Campo Vello. Todos los derechos reservados.
+    </footer>
+
+
 
 </body>
 
